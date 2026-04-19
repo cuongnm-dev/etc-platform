@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src/ tests/
+
+      - name: Format check (ruff)
+        run: ruff format --check src/ tests/
+
+      - name: Type check (mypy)
+        run: mypy src/etc_docgen
+        continue-on-error: true  # Gradual typing — don't block MVP
+
+      - name: Unit tests
+        run: pytest tests/unit -v
+
+      - name: Integration tests
+        run: pytest tests/integration -v -m "not slow"
+        continue-on-error: true
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: false
+
+  smoke:
+    name: Smoke test — full CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Verify CLI entry point
+        run: |
+          etc-docgen --version
+          etc-docgen --help
+          etc-docgen template list
+
+      - name: Smoke test — export from sample data
+        run: |
+          etc-docgen init examples/minimal || true
+          etc-docgen validate examples/minimal/content-data.json
+          etc-docgen export --config examples/minimal/etc-docgen.yaml \
+            --data examples/minimal/content-data.json \
+            --only xlsx tkkt

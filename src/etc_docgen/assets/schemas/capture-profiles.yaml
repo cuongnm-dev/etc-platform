@@ -1,0 +1,132 @@
+# Capture profiles for tdoc-test-runner
+# Purpose: eliminate hard-coded viewports + wait-times + post-process config
+# from the agent prompt — move to declarative YAML that both the MCP mode
+# and script mode read at runtime.
+
+version: "1.0"
+
+# ─── Default profile chosen when feature has no profile override ───
+default_profile: desktop
+
+# ─── Viewport + device profiles ───
+profiles:
+  desktop:
+    viewport:         [1280, 800]     # 16:10, balanced between detail + docx readability
+    device_scale:     1
+    user_agent:       null              # use Playwright default
+    is_mobile:        false
+    has_touch:        false
+    color_scheme:     light
+    reduced_motion:   reduce            # disable animations for deterministic captures
+    locale:           vi-VN
+
+  mobile:
+    viewport:         [390, 844]        # iPhone 14 Pro
+    device_scale:     2                 # retina → sharper screenshots
+    user_agent:       "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    is_mobile:        true
+    has_touch:        true
+    color_scheme:     light
+    reduced_motion:   reduce
+    locale:           vi-VN
+
+  tablet:
+    viewport:         [820, 1180]       # iPad
+    device_scale:     2
+    is_mobile:        true
+    has_touch:        true
+    color_scheme:     light
+    reduced_motion:   reduce
+    locale:           vi-VN
+
+# ─── Wait strategy — replaces brittle hard-coded sleeps ───
+wait_strategy:
+  # Before capturing ANY screenshot, wait for these conditions (in order).
+  # Each has a timeout; if it fails, fall through to the next.
+  before_capture:
+    - { type: load_state, state: "networkidle", timeout_ms: 5000 }
+    - { type: animation_complete, timeout_ms: 1500 }
+    - { type: fonts_loaded, timeout_ms: 2000 }
+    - { type: no_spinners, selectors: [".spinner", ".loader", "[role=progressbar]",
+                                        "[aria-busy=true]", ".skeleton"], timeout_ms: 3000 }
+
+  # Max total wait budget before giving up and capturing anyway
+  max_total_wait_ms: 8000
+
+  # After navigation + wait, add a small settle buffer (covers transforms finishing).
+  # Tuned down from the old hard-coded 2000ms.
+  final_settle_ms: 250
+
+# ─── Disable-animations CSS injected into every page ───
+# Massive improvement for deterministic captures — kills shimmer, fade, slide.
+animation_disable_css: |
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    caret-color: transparent !important;
+  }
+  /* Hide common network indicators */
+  [data-testid="loading"], .MuiSkeleton-root, [data-skeleton] { display: none !important; }
+
+# ─── Screenshot capture options ───
+capture:
+  fullPage:             false       # viewport-only by default → fast + deterministic
+  omit_background:      false
+  animations:           disabled    # Playwright native flag
+  type:                 png         # capture as PNG, postprocess decides final format
+  timeout_ms:           10000
+  retry:
+    attempts:           2           # per-screenshot retry with backoff
+    backoff_ms:         [500, 2000]
+
+# ─── Post-process: resize + compress to reduce docx size ───
+postprocess:
+  enabled:              true
+  # Output format decision:
+  #   - if original PNG > compress_threshold_kb → convert to JPEG at jpeg_quality
+  #   - else keep PNG
+  resize_max_width_px:  1400       # upper bound to fit docx 5.5" at 200 DPI
+  compress_threshold_kb: 150
+  jpeg_quality:         85
+  png_optimize:         true       # PIL optimize=True — lossless deflate
+  # Target file size ceiling — warn if an image exceeds after compression
+  target_max_kb:        300
+
+# ─── Navigation grouping — minimize full page loads ───
+navigation:
+  # Group features sharing the same entry-ui route so we navigate ONCE,
+  # capture all their initial states, then reset state between features.
+  group_by_entry_url:   true
+  # For protected pages — reset state between features via:
+  #   storage_state: reload storageState and refresh
+  #   back_navigation: browser back + forward
+  #   none: no reset (faster but features may leak state)
+  reset_between_features: back_navigation
+
+# ─── Auth session health check — cheap version, no navigation ───
+auth_health:
+  # Check via cookies/localStorage locally before each batch — ZERO navigation cost
+  method: cookie_inspection
+  required_cookie_names: ["session", "auth_token", "access_token"]
+  # Only full re-auth if ALL cookies expired
+  # (navigate-based health check is now optional, used only when cookies inconclusive)
+
+# ─── Batch strategy ───
+batches:
+  max_features_per_batch: 10
+  # NEW: parallelize non-conflicting batches (different entities → no state collision)
+  parallel_batches:       2           # how many specs to run simultaneously
+
+# ─── Feature-level overrides (user content-data can specify) ───
+# Example in content-data.json:
+#   "services": [{
+#     "slug": "mobile-app",
+#     "capture_profile": "mobile",     ← applies to all features in this service
+#     "features": [{
+#       "id": "F-005",
+#       "capture_profile": "desktop",  ← overrides for this one feature
+#       "wait_selector": "[data-testid=dashboard-loaded]"   ← feature-specific wait
+#     }]
+#   }]
