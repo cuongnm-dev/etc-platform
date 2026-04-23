@@ -1,0 +1,1498 @@
+{
+  "project": {
+    "display_name": "EduProctor — LMS & Thi trực tuyến có giám sát",
+    "code": "EDUPROCTOR-LMS",
+    "client": "Nội bộ dự án / Demo triển khai",
+    "description": "Hệ thống quản lý học tập trực tuyến, thi cử, eKYC và giám sát thi từ xa tích hợp thanh toán.",
+    "tech_stack": "Next.js 14, NestJS 10, PostgreSQL 16, Redis 7, Fastify WebSocket, Stripe, S3"
+  },
+  "dev_unit": "Công ty CP Hệ thống Công nghệ ETC",
+  "meta": {
+    "today": "23/04/2026",
+    "version": "1.0",
+    "test_period": "Q2/2026"
+  },
+  "test_sheets": {
+    "ui_label": "Chức năng hệ thống",
+    "api_label": "API hệ thống",
+    "ui_requirement": "Xác minh giao diện học viên, thi, giảng viên theo kịch bản UAT",
+    "api_requirement": "Xác minh REST API /api/v1 theo tài liệu thiết kế"
+  },
+  "overview": {
+    "purpose": "Hướng dẫn sử dụng và bộ tài liệu thiết kế cho EduProctor — nền tảng đào tạo trực tuyến, thi có giám sát AI, xác thực eKYC và quản lý khóa học phía giảng viên.",
+    "scope": "Học viên: duyệt khóa học, xem video, theo dõi lịch thi, eKYC, vào phòng thi. Giảng viên: tạo khóa học, cấu trúc bài giảng, câu hỏi, lịch thi. Hệ thống: API NestJS, web Next.js, dịch vụ proctoring qua WebSocket.",
+    "system_description": "Ứng dụng monorepo: web Next.js 14, API NestJS với global prefix /api/v1, PostgreSQL + TypeORM, Redis, dịch vụ proctoring Fastify, tích hợp Stripe thanh toán, lưu trữ media qua S3.",
+    "conventions": "Ngày tháng hiển thị dd/mm/yyyy. Tài khoản demo: theo môi trường .env. Trường bắt buộc đánh dấu *. Thông báo: toast xanh/đỏ. Trình duyệt khuyên dùng Chrome/Edge bản mới.",
+    "terms": [
+      {
+        "short": "LMS",
+        "full": "Learning Management System",
+        "explanation": "Hệ thống quản lý học tập"
+      },
+      {
+        "short": "eKYC",
+        "full": "electronic Know Your Customer",
+        "explanation": "Xác thực CCCD + ảnh khuôn mặt trước khi thi"
+      },
+      {
+        "short": "TKCS",
+        "full": "Thiết kế cơ sở",
+        "explanation": "Tài liệu thiết kế cấp cơ sở theo quy định"
+      }
+    ],
+    "references": [
+      { "stt": "1", "name": "README.md — EduProctor", "ref": "REPO" },
+      {
+        "stt": "2",
+        "name": "doc-brief (intel)",
+        "ref": "docs/intel/doc-brief.md"
+      },
+      {
+        "stt": "3",
+        "name": "code-facts.json",
+        "ref": "docs/generated/lms/intel/code-facts.json"
+      }
+    ]
+  },
+  "services": [
+    {
+      "slug": "learning",
+      "display_name": "Học tập (Học viên)",
+      "features": [
+        {
+          "id": "F-001",
+          "name": "Duyệt danh mục khóa học",
+          "description": "Học viên xem danh sách khóa học công khai, lọc tiến độ và tìm kiếm.",
+          "actors": ["Học viên"],
+          "preconditions": "Có thể truy cập ở chế độ công khai; đăng nhập để ghi nhận tiến độ.",
+          "ui_elements": [
+            {
+              "label": "Ô tìm kiếm",
+              "type": "search",
+              "rules": "Gõ từ khóa, Enter hoặc debounce"
+            },
+            {
+              "label": "Bộ lọc trạng thái",
+              "type": "tabs",
+              "rules": "Tất cả / Đang học"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở trang Khóa học từ menu học viên",
+              "screenshot": "courses-step-01-list.png"
+            }
+          ]
+        },
+        {
+          "id": "F-002",
+          "name": "Xem chi tiết khóa học & chương trình",
+          "description": "Xem mô tả, rating, bài giảng trong sidebar, tab Q&A.",
+          "actors": ["Học viên"],
+          "preconditions": "Khóa học đang hiển thị trong catalog (published).",
+          "ui_elements": [
+            {
+              "label": "Cây bài giảng",
+              "type": "list",
+              "rules": "Click bài để mở video"
+            },
+            {
+              "label": "Tab Hỏi đáp",
+              "type": "tab",
+              "rules": "Đăng câu hỏi khi đã ghi danh"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Chọn một khóa học từ danh sách",
+              "screenshot": "courses-step-02-detail.png"
+            }
+          ]
+        },
+        {
+          "id": "F-003",
+          "name": "Phát video bài giảng",
+          "description": "Trình phát video, thanh tiến độ, đánh dấu hoàn thành bài.",
+          "actors": ["Học viên"],
+          "preconditions": "Đã ghi danh; bài giảng loại video.",
+          "ui_elements": [
+            {
+              "label": "Trình phát",
+              "type": "video",
+              "rules": "Play/Pause, seek, tốc độ"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở bài video trong khóa học",
+              "screenshot": "video-step-01-player.png"
+            }
+          ]
+        },
+        {
+          "id": "F-010",
+          "name": "Hỏi đáp trên khóa học (Q&A)",
+          "description": "Học viên xem thread Q&A, đặt câu hỏi; giảng viên/trợ giảng trả lời qua API student/courses/:courseId/qa.",
+          "actors": ["Học viên", "Giảng viên"],
+          "preconditions": "Đã ghi danh khóa học; JWT student.",
+          "ui_elements": [
+            { "label": "Tab Hỏi đáp", "type": "tab", "rules": "POST nội dung câu hỏi" },
+            { "label": "Danh sách câu hỏi", "type": "list", "rules": "GET /student/courses/:id/qa" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở tab Q&A trong chi tiết khóa đã ghi danh",
+              "screenshot": "courses-step-02-detail.png"
+            }
+          ]
+        },
+        {
+          "id": "F-011",
+          "name": "Đánh dấu hoàn thành bài giảng",
+          "description": "PATCH /student/courses/:courseId/lectures/:lectureId/complete — cập nhật tiến độ học.",
+          "actors": ["Học viên"],
+          "preconditions": "Đã ghi danh; lecture tồn tại.",
+          "ui_elements": [
+            { "label": "Trạng thái bài", "type": "toggle", "rules": "Gọi API khi user đánh dấu xong" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Hoàn tất xem bài và kích hoạt đánh dấu hoàn thành (nếu UI có)",
+              "screenshot": "video-step-01-player.png"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "examination",
+      "display_name": "Thi & giám sát",
+      "features": [
+        {
+          "id": "F-004",
+          "name": "Xem lịch thi sắp tới",
+          "description": "Danh sách lịch thi, trạng thái, hoãn thi, đăng ký dự thi.",
+          "actors": ["Học viên"],
+          "preconditions": "Tài khoản đã đăng nhập.",
+          "ui_elements": [
+            {
+              "label": "Danh sách lịch",
+              "type": "list",
+              "rules": "Sắp theo thời gian"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở mục Lịch thi / Kỳ thi",
+              "screenshot": "exams-step-01-list.png"
+            }
+          ]
+        },
+        {
+          "id": "F-005",
+          "name": "Quy trình eKYC trước khi vào thi",
+          "description": "Chụp CCCD, ảnh khuôn mặt, so khớp 1:1 theo hướng dẫn hệ thống.",
+          "actors": ["Học viên", "Hệ thống eKYC"],
+          "preconditions": "Đã có lịch thi; trình duyệt cho phép camera.",
+          "ui_elements": [
+            {
+              "label": "Hướng dẫn từng bước",
+              "type": "wizard",
+              "rules": "Theo thứ tự: CCCD mặt trước/sau, selfie"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Bắt đầu phiên eKYC từ màn hình thi",
+              "screenshot": "ekyc-step-01-initial.png"
+            }
+          ]
+        },
+        {
+          "id": "F-006",
+          "name": "Vào phòng thi (giám sát)",
+          "description": "Giao diện phòng thi: câu hỏi, thời gian, cảnh báo vi phạm từ proctoring.",
+          "actors": ["Học viên"],
+          "preconditions": "eKYC thành công; ca thi mở.",
+          "ui_elements": [
+            {
+              "label": "Khu vực đề thi",
+              "type": "form",
+              "rules": "Chọn đáp án, nộp bài"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Vào phòng thi sau khi xác minh",
+              "screenshot": "exam-room-step-01-initial.png"
+            }
+          ]
+        },
+        {
+          "id": "F-012",
+          "name": "Đăng ký / hủy ứng viên dự thi",
+          "description": "POST /exam-schedules/:id/candidates đăng ký; DELETE /exam-candidates/:id hủy khi được phép.",
+          "actors": ["Học viên"],
+          "preconditions": "Lịch thi mở đăng ký; JWT.",
+          "ui_elements": [
+            { "label": "Nút đăng ký ca thi", "type": "button", "rules": "Gọi API candidates" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Từ lịch thi, chọn đăng ký hoặc hủy (theo UI)",
+              "screenshot": "exams-step-01-list.png"
+            }
+          ]
+        },
+        {
+          "id": "F-013",
+          "name": "Yêu cầu hoãn thi",
+          "description": "POST /exam-candidates/:id/postponement — tạo ticket hoãn theo quy định nghiệp vụ.",
+          "actors": ["Học viên"],
+          "preconditions": "Đã là ứng viên của ca thi.",
+          "ui_elements": [
+            { "label": "Hoãn thi", "type": "button", "rules": "Hiển thị lý do / trạng thái ticket" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở chi tiết ca thi đã đăng ký và gửi yêu cầu hoãn",
+              "screenshot": "exams-step-01-list.png"
+            }
+          ]
+        },
+        {
+          "id": "F-014",
+          "name": "Làm bài: lưu đáp án & nộp bài",
+          "description": "PUT /exam-sessions/:id/answers/:questionId lưu từng câu; POST /exam-sessions/:id/submit nộp bài.",
+          "actors": ["Học viên"],
+          "preconditions": "Phiên thi in_progress; JWT.",
+          "ui_elements": [
+            { "label": "Điều hướng câu", "type": "pager", "rules": "Auto-save theo debounce" },
+            { "label": "Nộp bài", "type": "button", "rules": "Xác nhận một lần" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Trong phòng thi, chọn đáp án và nộp bài",
+              "screenshot": "exam-room-step-01-initial.png"
+            }
+          ]
+        },
+        {
+          "id": "F-015",
+          "name": "eKYC: tải ảnh CCCD & selfie, so khớp khuôn mặt",
+          "description": "PATCH cccd-front/back, face-photo; POST face-match; GET /ekyc-sessions/:id theo code-facts.",
+          "actors": ["Học viên"],
+          "preconditions": "Đã tạo ekyc-session từ lịch thi.",
+          "ui_elements": [
+            { "label": "Upload ảnh", "type": "file", "rules": "Presigned S3 hoặc multipart theo triển khai" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Tải lên ảnh theo từng bước wizard eKYC",
+              "screenshot": "ekyc-step-01-initial.png"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "instructor",
+      "display_name": "Giảng viên & quản lý nội dung",
+      "features": [
+        {
+          "id": "F-007",
+          "name": "Bảng điều khiển giảng viên",
+          "description": "Tổng quan khóa học, hoạt động gần đây, điều hướng tạo nội dung.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Tài khoản có role giảng viên.",
+          "ui_elements": [
+            { "label": "Thẻ tóm tắt", "type": "cards", "rules": "KPI/shortcut" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Đăng nhập, chuyển chế độ giảng viên",
+              "screenshot": "instructor-step-01-dashboard.png"
+            }
+          ]
+        },
+        {
+          "id": "F-008",
+          "name": "Danh sách khóa học của tôi",
+          "description": "CRUD bản thảo, xuất bản, sửa cấu trúc sections/lectures.",
+          "actors": ["Giảng viên"],
+          "preconditions": "JWT hợp lệ, role instructor.",
+          "ui_elements": [
+            {
+              "label": "Nút tạo khóa mới",
+              "type": "button",
+              "rules": "Tạo course draft"
+            }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở mục quản lý khóa học",
+              "screenshot": "instructor-courses-step-01-list.png"
+            }
+          ]
+        },
+        {
+          "id": "F-009",
+          "name": "Tạo / chỉnh sửa khóa học",
+          "description": "Form tiêu đề, mô tả, giá; liên kết với bài thi, sections.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Có quyền tạo khóa (instructor).",
+          "ui_elements": [
+            { "label": "Tiêu đề khóa", "type": "input", "rules": "Bắt buộc" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở form tạo khóa mới",
+              "screenshot": "instructor-course-step-01-create.png"
+            }
+          ]
+        },
+        {
+          "id": "F-016",
+          "name": "Ngân hàng câu hỏi",
+          "description": "CRUD /questions — tạo câu hỏi gắn khóa học, dùng lại khi lắp đề thi.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Role instructor; JWT.",
+          "ui_elements": [
+            { "label": "Danh sách câu hỏi", "type": "table", "rules": "Filter theo khóa" },
+            { "label": "Tạo câu hỏi", "type": "button", "rules": "POST /questions" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Mở mục ngân hàng câu hỏi trong khu vực giảng viên",
+              "screenshot": "instructor-step-01-dashboard.png"
+            }
+          ]
+        },
+        {
+          "id": "F-017",
+          "name": "Chương học & bài giảng (sections / lectures)",
+          "description": "GET/POST /courses/:id/sections; GET/POST /sections/:id/lectures; PATCH reorder.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Khóa học draft hoặc published thuộc instructor.",
+          "ui_elements": [
+            { "label": "Cây chương", "type": "tree", "rules": "Kéo thả reorder nếu hỗ trợ" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Trong editor khóa, thêm section và bài giảng",
+              "screenshot": "instructor-course-step-01-create.png"
+            }
+          ]
+        },
+        {
+          "id": "F-018",
+          "name": "Đề thi & gắn câu hỏi vào đề",
+          "description": "GET/POST/PATCH/DELETE /courses/:id/exams và questions trên đề.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Khóa học có quyền sửa.",
+          "ui_elements": [
+            { "label": "Danh sách đề", "type": "list", "rules": "Liên kết question bank" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Tạo đề thi và thêm câu hỏi từ ngân hàng",
+              "screenshot": "instructor-course-step-01-create.png"
+            }
+          ]
+        },
+        {
+          "id": "F-019",
+          "name": "Xuất bản & gỡ xuất bản khóa học",
+          "description": "POST /courses/:id/publish và /unpublish — chuyển trạng thái catalog.",
+          "actors": ["Giảng viên"],
+          "preconditions": "Khóa đủ điều kiện nghiệp vụ (nội dung tối thiểu).",
+          "ui_elements": [
+            { "label": "Xuất bản", "type": "button", "rules": "Confirm dialog" }
+          ],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Từ danh sách khóa hoặc editor, thực hiện publish/unpublish",
+              "screenshot": "instructor-courses-step-01-list.png"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "identity",
+      "display_name": "Tài khoản & phiên đăng nhập",
+      "features": [
+        {
+          "id": "F-020",
+          "name": "Đăng ký & xác minh email",
+          "description": "POST /auth/register, /auth/verify-email, /auth/resend-verification.",
+          "actors": ["Người dùng mới"],
+          "preconditions": "Email chưa tồn tại; SMTP/callback cấu hình.",
+          "ui_elements": [
+            { "label": "Form đăng ký", "type": "form", "rules": "Mật khẩu theo policy" },
+            { "label": "Link xác minh", "type": "link", "rules": "Token trong email" }
+          ],
+          "steps": [
+            { "no": 1, "action": "Hoàn tất form đăng ký và mở link xác minh (email)", "screenshot": "" }
+          ]
+        },
+        {
+          "id": "F-021",
+          "name": "Quên mật khẩu & đặt lại",
+          "description": "POST /auth/forgot-password, /auth/reset-password; PATCH /auth/update-password khi đã đăng nhập.",
+          "actors": ["Người dùng"],
+          "preconditions": "Biết email đã đăng ký (forgot flow).",
+          "ui_elements": [
+            { "label": "Quên mật khẩu", "type": "link", "rules": "Gửi email reset" }
+          ],
+          "steps": [
+            { "no": 1, "action": "Luồng forgot → nhập token → đặt mật khẩu mới", "screenshot": "" }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "commerce",
+      "display_name": "Thanh toán",
+      "features": [
+        {
+          "id": "F-022",
+          "name": "Thanh toán khóa học (Stripe)",
+          "description": "POST /payments/create-intent; GET /payments lịch sử; webhook /payments/webhook chữ ký Stripe.",
+          "actors": ["Học viên"],
+          "preconditions": "Stripe keys; khóa có giá.",
+          "ui_elements": [
+            { "label": "Thanh toán", "type": "button", "rules": "Stripe Elements / redirect theo triển khai" }
+          ],
+          "steps": [
+            { "no": 1, "action": "Chọn mua khóa và hoàn tất thanh toán test", "screenshot": "" }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "trust",
+      "display_name": "Chứng chỉ & tích hợp hệ thống",
+      "features": [
+        {
+          "id": "F-023",
+          "name": "Xác minh chứng chỉ công khai",
+          "description": "GET /certificates/verify/:verifyCode — không cần JWT.",
+          "actors": ["Công chúng", "Nhà tuyển dụng"],
+          "preconditions": "Mã verify hợp lệ.",
+          "ui_elements": [
+            { "label": "Ô mã xác minh", "type": "input", "rules": "Public landing page" }
+          ],
+          "steps": [
+            { "no": 1, "action": "Nhập mã verify trên trang công khai", "screenshot": "" }
+          ]
+        },
+        {
+          "id": "F-024",
+          "name": "Giám sát thi: WebSocket & API nội bộ",
+          "description": "WS /exam-sessions/:session_id/ws (Fastify); POST/GET /internal/exam-sessions/:id/violations|state với internal token.",
+          "actors": ["Dịch vụ proctoring", "Hệ thống"],
+          "preconditions": "Internal token cấu hình; session đang active.",
+          "ui_elements": [],
+          "steps": [
+            {
+              "no": 1,
+              "action": "Client phòng thi duy trì kết nối WS; server ghi nhận vi phạm",
+              "screenshot": "exam-room-step-01-initial.png"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "test_cases": {
+    "ui": [
+      {
+        "name": "TC-UI-001: Hiển thị danh sách khóa học (F-001)",
+        "feature_id": "F-001",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Truy cập trang catalog khóa học",
+            "expected": "Thấy lưới/danh sách khóa, ô tìm kiếm"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Không lỗi 500; có ít nhất placeholder hoặc dữ liệu demo"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-002: Chi tiết khóa học & chương trình (F-002)",
+        "feature_id": "F-002",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Chọn một khóa học từ catalog",
+            "expected": "Mở trang chi tiết với curriculum sidebar"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Hiển thị tiêu đề, tab Q&A, danh sách bài giảng"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-003: Phát video bài giảng (F-003)",
+        "feature_id": "F-003",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Click bài video trong chương trình",
+            "expected": "Trình phát hiển thị, có play/pause"
+          }
+        ],
+        "expected": [
+          { "no": 1, "expected": "Video load hoặc placeholder; không crash UI" }
+        ]
+      },
+      {
+        "name": "TC-UI-004: Danh sách lịch thi (F-004)",
+        "feature_id": "F-004",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Mở mục lịch thi khi đã đăng nhập học viên",
+            "expected": "Danh sách ca thi với ngày/trạng thái"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Có thể rỗng nhưng layout đúng; không 403 sai role"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-005: eKYC hiển thị hướng dẫn (F-005)",
+        "feature_id": "F-005",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Từ lịch thi, bắt đầu eKYC",
+            "expected": "Hiện bước hướng dẫn, nút tiếp tục"
+          }
+        ],
+        "expected": [
+          { "no": 1, "expected": "Màn hình eKYC không trắng, có nội dung" }
+        ]
+      },
+      {
+        "name": "TC-UI-006: Phòng thi sau eKYC (F-006)",
+        "feature_id": "F-006",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Hoàn tất eKYC và vào phòng thi",
+            "expected": "Giao diện đề, đồng hồ, điều hướng câu hỏi"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Session thi hiển thị; không quay về login loop"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-007: Dashboard giảng viên (F-007)",
+        "feature_id": "F-007",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Đăng nhập role giảng viên, mở dashboard",
+            "expected": "Thẻ tóm tắt và menu quản lý"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Không hiển thị UI học viên mặc định khi đã switch instructor"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-008: Danh sách khóa của giảng viên (F-008)",
+        "feature_id": "F-008",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Mở quản lý khóa học",
+            "expected": "Bảng/list khóa draft và published"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Nút tạo khóa mới hiển thị; GET /courses phản hồi thành công"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-009: Form tạo/chỉnh sửa khóa học (F-009)",
+        "feature_id": "F-009",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Click tạo khóa mới",
+            "expected": "Form tiêu đề, mô tả, giá"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "Validation bắt buộc hoạt động; submit trả về thông báo rõ ràng"
+          }
+        ]
+      },
+      {
+        "name": "TC-UI-010: Tab Q&A khóa học (F-010)",
+        "feature_id": "F-010",
+        "steps": [{ "no": 1, "action": "Mở tab Q&A sau khi ghi danh", "expected": "Có form hoặc danh sách câu hỏi" }],
+        "expected": [{ "no": 1, "expected": "GET/POST QA không lỗi 500" }]
+      },
+      {
+        "name": "TC-UI-011: Tiến độ bài học (F-011)",
+        "feature_id": "F-011",
+        "steps": [{ "no": 1, "action": "Sau khi xem video, kích hoạt hoàn thành nếu có", "expected": "Trạng thái bài cập nhật" }],
+        "expected": [{ "no": 1, "expected": "PATCH complete trả 200 hoặc UI phản hồi thành công" }]
+      },
+      {
+        "name": "TC-UI-012: Đăng ký ca thi (F-012)",
+        "feature_id": "F-012",
+        "steps": [{ "no": 1, "action": "Chọn đăng ký trên một ca thi", "expected": "Trạng thái ứng viên cập nhật" }],
+        "expected": [{ "no": 1, "expected": "POST candidates thành công hoặc thông báo lỗi rõ" }]
+      },
+      {
+        "name": "TC-UI-013: Hoãn thi (F-013)",
+        "feature_id": "F-013",
+        "steps": [{ "no": 1, "action": "Gửi yêu cầu hoãn từ màn lịch thi", "expected": "Ticket hoặc trạng thái hiển thị" }],
+        "expected": [{ "no": 1, "expected": "POST postponement không crash" }]
+      },
+      {
+        "name": "TC-UI-014: Lưu đáp án & nộp (F-014)",
+        "feature_id": "F-014",
+        "steps": [{ "no": 1, "action": "Chọn đáp án và bấm nộp bài", "expected": "Xác nhận nộp bài" }],
+        "expected": [{ "no": 1, "expected": "Session chuyển submitted hoặc thông báo lỗi hợp lệ" }]
+      },
+      {
+        "name": "TC-UI-015: Upload ảnh eKYC (F-015)",
+        "feature_id": "F-015",
+        "steps": [{ "no": 1, "action": "Tải ảnh CCCD và selfie theo wizard", "expected": "Bước tiến hành đúng thứ tự" }],
+        "expected": [{ "no": 1, "expected": "PATCH session nhận 200/201" }]
+      },
+      {
+        "name": "TC-UI-016: Ngân hàng câu hỏi (F-016)",
+        "feature_id": "F-016",
+        "steps": [{ "no": 1, "action": "Mở màn hình quản lý câu hỏi", "expected": "Danh sách có thể rỗng" }],
+        "expected": [{ "no": 1, "expected": "GET /questions 200 với instructor" }]
+      },
+      {
+        "name": "TC-UI-017: Cấu trúc chương/bài (F-017)",
+        "feature_id": "F-017",
+        "steps": [{ "no": 1, "action": "Thêm section và lecture trong editor", "expected": "Cây chương cập nhật" }],
+        "expected": [{ "no": 1, "expected": "API sections/lectures phản hồi 200/201" }]
+      },
+      {
+        "name": "TC-UI-018: Đề thi & câu hỏi (F-018)",
+        "feature_id": "F-018",
+        "steps": [{ "no": 1, "action": "Tạo đề và gắn câu từ ngân hàng", "expected": "Đề hiển thị trong khóa" }],
+        "expected": [{ "no": 1, "expected": "GET exams/questions ổn định" }]
+      },
+      {
+        "name": "TC-UI-019: Publish khóa (F-019)",
+        "feature_id": "F-019",
+        "steps": [{ "no": 1, "action": "Publish hoặc unpublish từ danh sách", "expected": "Trạng thái khóa đổi" }],
+        "expected": [{ "no": 1, "expected": "POST publish/unpublish 200" }]
+      },
+      {
+        "name": "TC-UI-020: Đăng ký tài khoản (F-020)",
+        "feature_id": "F-020",
+        "steps": [{ "no": 1, "action": "Điền form đăng ký và gửi", "expected": "Thông báo kiểm tra email" }],
+        "expected": [{ "no": 1, "expected": "POST register 201/200 hoặc lỗi validation 400" }]
+      },
+      {
+        "name": "TC-UI-021: Quên mật khẩu (F-021)",
+        "feature_id": "F-021",
+        "steps": [{ "no": 1, "action": "Nhập email quên mật khẩu", "expected": "Thông báo đã gửi mail" }],
+        "expected": [{ "no": 1, "expected": "POST forgot-password 200/202" }]
+      },
+      {
+        "name": "TC-UI-022: Checkout Stripe (F-022)",
+        "feature_id": "F-022",
+        "steps": [{ "no": 1, "action": "Bắt đầu thanh toán khóa trả phí", "expected": "Stripe UI hoặc redirect" }],
+        "expected": [{ "no": 1, "expected": "create-intent trả client_secret" }]
+      },
+      {
+        "name": "TC-UI-023: Tra cứu chứng chỉ (F-023)",
+        "feature_id": "F-023",
+        "steps": [{ "no": 1, "action": "Nhập mã verify công khai", "expected": "Kết quả hợp lệ / không hợp lệ" }],
+        "expected": [{ "no": 1, "expected": "GET verify trả 200 với payload rõ" }]
+      },
+      {
+        "name": "TC-UI-024: Kết nối phòng thi realtime (F-024)",
+        "feature_id": "F-024",
+        "steps": [{ "no": 1, "action": "Vào phòng thi và quan sát heartbeat/state", "expected": "WS không disconnect ngay" }],
+        "expected": [{ "no": 1, "expected": "JOIN/HEARTBEAT được server chấp nhận hoặc lỗi auth rõ" }]
+      }
+    ],
+    "api": [
+      {
+        "name": "TC-API-001: POST /api/v1/auth/login",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gửi body email+password hợp lệ",
+            "data": "identifier + password"
+          },
+          { "no": 2, "action": "Gửi sai mật khẩu", "data": "password sai" }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "200 và access token (hoặc cookie) khi thành công"
+          },
+          { "no": 2, "expected": "401 khi thất bại" }
+        ]
+      },
+      {
+        "name": "TC-API-002: GET /api/v1/public/courses",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gọi không Authorization header",
+            "expected": "200 list published"
+          }
+        ],
+        "expected": [
+          { "no": 1, "expected": "Array (có thể rỗng) schema ổn định" }
+        ]
+      },
+      {
+        "name": "TC-API-003: GET /api/v1/public/courses/:id",
+        "feature_id": "F-002",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gọi với id khóa published hợp lệ",
+            "data": "UUID course"
+          },
+          {
+            "no": 2,
+            "action": "Gọi với id không tồn tại",
+            "data": "random UUID"
+          }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 và payload chi tiết catalog" },
+          { "no": 2, "expected": "404 hoặc empty theo contract API" }
+        ]
+      },
+      {
+        "name": "TC-API-004: GET /api/v1/student/courses (JWT student)",
+        "feature_id": "F-003",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gọi kèm Bearer token role student",
+            "data": "Authorization: Bearer …"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "200 danh sách khóa đã ghi danh; 401 nếu không token"
+          }
+        ]
+      },
+      {
+        "name": "TC-API-005: GET /api/v1/exam-schedules (JWT)",
+        "feature_id": "F-004",
+        "steps": [
+          { "no": 1, "action": "Gọi với Bearer học viên", "data": "JWT" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 hoặc danh sách rỗng; không 500" }
+        ]
+      },
+      {
+        "name": "TC-API-006: POST /api/v1/exam-schedules/:id/ekyc-sessions",
+        "feature_id": "F-005",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Tạo phiên eKYC với schedule hợp lệ",
+            "data": "scheduleId + JWT"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "201/200 với id session; 400 nếu thiếu dữ liệu"
+          }
+        ]
+      },
+      {
+        "name": "TC-API-007: GET /api/v1/courses (instructor)",
+        "feature_id": "F-008",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gọi với Bearer role instructor",
+            "data": "JWT instructor"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "200 mảng khóa của instructor; 403 với student token"
+          }
+        ]
+      },
+      {
+        "name": "TC-API-008: POST /api/v1/courses (tạo draft)",
+        "feature_id": "F-009",
+        "steps": [
+          {
+            "no": 1,
+            "action": "POST body title tối thiểu",
+            "data": "{ title, … }"
+          }
+        ],
+        "expected": [
+          { "no": 1, "expected": "201 và id khóa mới; 401 không JWT" }
+        ]
+      },
+      {
+        "name": "TC-API-009: POST /api/v1/exam-sessions (bắt đầu phiên thi)",
+        "feature_id": "F-006",
+        "steps": [
+          {
+            "no": 1,
+            "action": "POST với JWT ứng viên đã eKYC và schedule hợp lệ",
+            "data": "candidateId hoặc payload theo contract API"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "201/200 với session id; 400/403 nếu chưa đủ điều kiện"
+          }
+        ]
+      },
+      {
+        "name": "TC-API-010: GET /api/v1/auth/me (context dashboard giảng viên)",
+        "feature_id": "F-007",
+        "steps": [
+          {
+            "no": 1,
+            "action": "Gọi với Bearer sau login instructor",
+            "data": "JWT instructor"
+          }
+        ],
+        "expected": [
+          {
+            "no": 1,
+            "expected": "200 và role instructor; 401 nếu token sai/hết hạn"
+          }
+        ]
+      },
+      {
+        "name": "TC-API-011: POST /api/v1/auth/register + verify-email",
+        "feature_id": "F-020",
+        "steps": [
+          { "no": 1, "action": "POST register với email/password hợp lệ", "data": "body register" },
+          { "no": 2, "action": "POST verify-email với token từ mail", "data": "token" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "201/200 hoặc 409 trùng email" },
+          { "no": 2, "expected": "200 khi token đúng; 400 khi token sai" }
+        ]
+      },
+      {
+        "name": "TC-API-012: POST forgot-password + reset-password",
+        "feature_id": "F-021",
+        "steps": [
+          { "no": 1, "action": "POST /auth/forgot-password", "data": "email" },
+          { "no": 2, "action": "POST /auth/reset-password với token", "data": "token + newPassword" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 dù email không tồn tại (an toàn) hoặc 404 theo policy" },
+          { "no": 2, "expected": "200 đổi mật thành công khi token hợp lệ" }
+        ]
+      },
+      {
+        "name": "TC-API-013: PATCH /api/v1/auth/update-password",
+        "feature_id": "F-021",
+        "steps": [{ "no": 1, "action": "PATCH kèm JWT và old+new password", "data": "Bearer" }],
+        "expected": [{ "no": 1, "expected": "200 hoặc 400 sai mật cũ" }]
+      },
+      {
+        "name": "TC-API-014: GET /api/v1/student/courses/:courseId + POST qa",
+        "feature_id": "F-010",
+        "steps": [
+          { "no": 1, "action": "GET chi tiết khóa đã ghi danh", "data": "JWT student" },
+          { "no": 2, "action": "POST /student/courses/:id/qa", "data": "text câu hỏi" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 payload khóa" },
+          { "no": 2, "expected": "201/200 tạo câu hỏi" }
+        ]
+      },
+      {
+        "name": "TC-API-015: PATCH /api/v1/student/courses/:c/lectures/:l/complete",
+        "feature_id": "F-011",
+        "steps": [{ "no": 1, "action": "PATCH complete sau khi enroll", "data": "JWT" }],
+        "expected": [{ "no": 1, "expected": "200; 403 nếu chưa ghi danh" }]
+      },
+      {
+        "name": "TC-API-016: CRUD /api/v1/questions",
+        "feature_id": "F-016",
+        "steps": [
+          { "no": 1, "action": "GET list", "data": "JWT instructor" },
+          { "no": 2, "action": "POST tạo câu hỏi", "data": "courseId + content" },
+          { "no": 3, "action": "PATCH/DELETE theo id", "data": "id" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 array" },
+          { "no": 2, "expected": "201" },
+          { "no": 3, "expected": "200/204" }
+        ]
+      },
+      {
+        "name": "TC-API-017: Sections & lectures + reorder",
+        "feature_id": "F-017",
+        "steps": [
+          { "no": 1, "action": "GET/POST /courses/:id/sections", "data": "JWT instructor" },
+          { "no": 2, "action": "GET/POST /sections/:id/lectures", "data": "sectionId" },
+          { "no": 3, "action": "PATCH .../sections/reorder và .../lectures/reorder", "data": "order[]" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200/201" },
+          { "no": 2, "expected": "200/201" },
+          { "no": 3, "expected": "200" }
+        ]
+      },
+      {
+        "name": "TC-API-018: Exams + questions on exam",
+        "feature_id": "F-018",
+        "steps": [
+          { "no": 1, "action": "GET/POST /courses/:id/exams", "data": "JWT" },
+          { "no": 2, "action": "GET/POST/DELETE questions on exam", "data": "examId" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200/201" },
+          { "no": 2, "expected": "200/201/204" }
+        ]
+      },
+      {
+        "name": "TC-API-019: POST publish + unpublish course",
+        "feature_id": "F-019",
+        "steps": [
+          { "no": 1, "action": "POST /courses/:id/publish", "data": "JWT" },
+          { "no": 2, "action": "POST /courses/:id/unpublish", "data": "JWT" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 hoặc 400 nếu thiếu điều kiện" },
+          { "no": 2, "expected": "200" }
+        ]
+      },
+      {
+        "name": "TC-API-020: POST candidates + DELETE exam-candidate",
+        "feature_id": "F-012",
+        "steps": [
+          { "no": 1, "action": "POST /exam-schedules/:id/candidates", "data": "JWT" },
+          { "no": 2, "action": "DELETE /exam-candidates/:id", "data": "candidateId" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "201/200" },
+          { "no": 2, "expected": "204/200" }
+        ]
+      },
+      {
+        "name": "TC-API-027: POST /exam-candidates/:id/postponement",
+        "feature_id": "F-013",
+        "steps": [{ "no": 1, "action": "POST postponement với JWT ứng viên", "data": "candidateId" }],
+        "expected": [{ "no": 1, "expected": "201/200 hoặc 400 nghiệp vụ" }]
+      },
+      {
+        "name": "TC-API-021: GET session + PUT answer + POST submit",
+        "feature_id": "F-014",
+        "steps": [
+          { "no": 1, "action": "GET /exam-sessions/:id", "data": "JWT" },
+          { "no": 2, "action": "PUT .../answers/:questionId", "data": "payload đáp án" },
+          { "no": 3, "action": "POST .../submit", "data": "" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 state" },
+          { "no": 2, "expected": "200/204" },
+          { "no": 3, "expected": "200 submitted hoặc 400 nếu đã nộp" }
+        ]
+      },
+      {
+        "name": "TC-API-022: eKYC PATCH assets + face-match + GET",
+        "feature_id": "F-015",
+        "steps": [
+          { "no": 1, "action": "PATCH cccd-front/back, face-photo", "data": "multipart hoặc URL" },
+          { "no": 2, "action": "POST face-match", "data": "sessionId" },
+          { "no": 3, "action": "GET /ekyc-sessions/:id", "data": "" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 mỗi bước" },
+          { "no": 2, "expected": "200 match result" },
+          { "no": 3, "expected": "200 trạng thái session" }
+        ]
+      },
+      {
+        "name": "TC-API-023: Payments intent + list + webhook",
+        "feature_id": "F-022",
+        "steps": [
+          { "no": 1, "action": "POST /payments/create-intent", "data": "JWT + courseId" },
+          { "no": 2, "action": "GET /payments", "data": "JWT" },
+          { "no": 3, "action": "POST /payments/webhook với chữ ký Stripe", "data": "raw body + Stripe-Signature" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200 client_secret" },
+          { "no": 2, "expected": "200 list" },
+          { "no": 3, "expected": "200 xử lý idempotent" }
+        ]
+      },
+      {
+        "name": "TC-API-024: GET /api/v1/certificates/verify/:verifyCode",
+        "feature_id": "F-023",
+        "steps": [{ "no": 1, "action": "Gọi public không JWT", "data": "verifyCode" }],
+        "expected": [{ "no": 1, "expected": "200 hợp lệ; 404 mã sai" }]
+      },
+      {
+        "name": "TC-API-025: Internal violations + state",
+        "feature_id": "F-024",
+        "steps": [
+          { "no": 1, "action": "POST /internal/exam-sessions/:id/violations", "data": "internal token" },
+          { "no": 2, "action": "GET /internal/exam-sessions/:id/state", "data": "internal token" }
+        ],
+        "expected": [
+          { "no": 1, "expected": "200/202 ack" },
+          { "no": 2, "expected": "200 snapshot state" }
+        ]
+      },
+      {
+        "name": "TC-API-026: GET /api/v1/public/exam-schedules",
+        "feature_id": "F-004",
+        "steps": [{ "no": 1, "action": "Gọi không auth", "data": "" }],
+        "expected": [{ "no": 1, "expected": "200 public lịch thi" }]
+      }
+    ]
+  },
+  "troubleshooting": [
+    {
+      "situation": "Không đăng nhập được (401/403)",
+      "cause": "Sai mật khẩu, email chưa xác minh, hoặc token hết hạn",
+      "resolution": "Dùng forgot-password, kiểm tra email verify, xóa cookie/localStorage và thử lại"
+    },
+    {
+      "situation": "eKYC không bật camera",
+      "cause": "Quyền trình duyệt hoặc thiết bị bị chặn",
+      "resolution": "Cấp quyền site trong trình duyệt, thử trình duyệt khác, tắt extension chặn media"
+    },
+    {
+      "situation": "Thanh toán Stripe không hoàn tất",
+      "cause": "Thiếu STRIPE_SECRET_KEY, webhook chưa cấu hình, hoặc client_secret hết hạn",
+      "resolution": "Kiểm tra .env và Stripe Dashboard; dùng Stripe CLI forward webhook khi dev local"
+    },
+    {
+      "situation": "Phòng thi mất kết nối WebSocket hoặc tự submit",
+      "cause": "Redis unavailable, idle timeout, hoặc vi phạm TAB_SWITCH/NO_FACE kích hoạt auto-submit",
+      "resolution": "Kiểm tra proctoring logs, Redis; tắt tab thừa; đọc close code 4401/1011 trong code-facts ws_events"
+    }
+  ],
+  "architecture": {
+    "purpose": "Cung cấp kiến trúc tổng thể cho EduProctor: web, API, proctoring, dữ liệu và tích hợp bên ngoài.",
+    "scope": "Trong phạm vi monorepo hiện tại: ứng dụng web người dùng, REST API, schema PostgreSQL (app + proctoring), Redis, tích hợp thanh toán.",
+    "system_overview": "Kiến trúc 3 lớp: client Next.js, API NestJS (business + auth + enrollment), tầng dữ liệu PostgreSQL/Redis, kênh proctoring WebSocket tới dịch vụ Fastify.",
+    "scope_description": "Triển khai container hóa qua docker-compose; API global prefix /api/v1; role-based guards (student/instructor/internal).",
+    "tech_stack": [
+      {
+        "layer": "Frontend",
+        "technology": "Next.js",
+        "version": "14",
+        "role": "SSR/CSR web"
+      },
+      {
+        "layer": "Backend",
+        "technology": "NestJS",
+        "version": "10",
+        "role": "REST + guards"
+      },
+      {
+        "layer": "DB",
+        "technology": "PostgreSQL",
+        "version": "16",
+        "role": "OLTP"
+      },
+      {
+        "layer": "Cache",
+        "technology": "Redis",
+        "version": "7",
+        "role": "Session/cache"
+      },
+      {
+        "layer": "Proctoring",
+        "technology": "Fastify + ws",
+        "version": "4/8",
+        "role": "Exam realtime"
+      }
+    ],
+    "logical_description": "Client gọi API Nest với JWT; dịch vụ nội bộ tách schema proctoring; thanh toán qua webhook Stripe; media qua S3 presigned URL.",
+    "components": [
+      { "name": "web (Next.js)", "type": "frontend", "description": "UI học viên, giảng viên, auth, thanh toán, phòng thi" },
+      { "name": "api (NestJS)", "type": "service", "description": "auth, courses, sections, questions, student-courses, examination, ekyc, payments, certificates, internal" },
+      { "name": "proctoring (Fastify)", "type": "service", "description": "WebSocket phòng thi, Redis pub/sub, đẩy violations về API internal" }
+    ],
+    "interaction_description": "Trình duyệt tới Next.js:3000; API :4000; proctoring WS :4100. Internal token bảo vệ endpoint đẩy vi phạm từ proctoring tới API.",
+    "data_description": "Bảng users/courses/enrollments trong public; bảng exam_*, ekyc_* trong schema proctoring. Redis hỗ trợ tốc độ đọc.",
+    "data_entities": [
+      { "name": "UserAccount", "description": "Tài khoản, role, xác thực email" },
+      { "name": "Course", "description": "Khóa học, trạng thái publish, giá" },
+      { "name": "Section", "description": "Chương trong khóa" },
+      { "name": "Lecture", "description": "Bài giảng trong chương" },
+      { "name": "Question", "description": "Câu hỏi ngân hàng" },
+      { "name": "Exam", "description": "Đề thi gắn khóa" },
+      { "name": "ExamSession", "description": "Phiên thi, trạng thái, vi phạm" },
+      { "name": "Payment", "description": "Giao dịch Stripe" },
+      { "name": "Certificate", "description": "Chứng chỉ + verify_code" }
+    ],
+    "integration_description": "Stripe (payment intent + webhook), AWS S3 (object storage), email provider (gửi xác minh, optional).",
+    "apis": [
+      { "path": "/api/v1/auth/login", "method": "POST", "description": "Đăng nhập JWT", "auth": "public" },
+      { "path": "/api/v1/auth/register", "method": "POST", "description": "Đăng ký", "auth": "public" },
+      { "path": "/api/v1/auth/verify-email", "method": "POST", "description": "Xác minh email", "auth": "public" },
+      { "path": "/api/v1/public/courses", "method": "GET", "description": "Catalog published", "auth": "public" },
+      { "path": "/api/v1/public/courses/:id", "method": "GET", "description": "Chi tiết catalog", "auth": "public" },
+      { "path": "/api/v1/student/courses", "method": "GET", "description": "Khóa đã ghi danh", "auth": "jwt student" },
+      { "path": "/api/v1/courses", "method": "GET", "description": "Khóa của instructor", "auth": "jwt instructor" },
+      { "path": "/api/v1/exam-schedules", "method": "GET", "description": "Lịch thi user", "auth": "jwt" },
+      { "path": "/api/v1/exam-sessions", "method": "POST", "description": "Bắt đầu phiên thi", "auth": "jwt" },
+      { "path": "/api/v1/payments/create-intent", "method": "POST", "description": "Stripe PaymentIntent", "auth": "jwt" },
+      { "path": "/api/v1/internal/exam-sessions/:id/violations", "method": "POST", "description": "Proctoring callback", "auth": "internal" }
+    ],
+    "external_integrations": [
+      {
+        "system": "Stripe",
+        "protocol": "HTTPS + webhook",
+        "purpose": "Thanh toán khóa học"
+      },
+      {
+        "system": "AWS S3",
+        "protocol": "HTTPS (SDK)",
+        "purpose": "Lưu file CCCD, media"
+      }
+    ],
+    "deployment_description": "docker-compose: services web, api, proctoring, postgres, redis; biến môi trường theo .env.example.",
+    "environments": [
+      { "name": "local", "infrastructure": "Docker Desktop", "purpose": "Dev" },
+      { "name": "staging", "infrastructure": "K8s (ví dụ)", "purpose": "UAT" }
+    ],
+    "containers": [
+      { "name": "eduproctor-web", "image": "node:20", "port": "3000" },
+      { "name": "eduproctor-api", "image": "node:20", "port": "4000" }
+    ],
+    "security_description": "JWT Bearer; guard theo role; mật khẩu bcrypt; CORS; webhook Stripe ký; PII eKYC audit log.",
+    "auth_description": "Auth module: register, verify email, reset password; JWT cho student/instructor; internal token HMAC cho proctoring.",
+    "data_protection": "PII hạn chế: ảnh eKYC, ghi proctoring.pii_audit_log; mã hóa transit TLS.",
+    "nfr": [
+      {
+        "criterion": "Hiệu năng API",
+        "requirement": "P95 dưới 500ms cho read catalog",
+        "solution": "index DB + Redis tùy endpoint"
+      },
+      {
+        "criterion": "Sẵn sàng",
+        "requirement": "Rolling restart",
+        "solution": "stateless API + healthcheck"
+      }
+    ],
+    "architecture_diagram": "graph LR;Web[Next]-->API[Nest];API-->PG[Postgres];Web-->P[Proctoring];P-->API",
+    "logical_diagram": "flowchart LR;U[User]-->W[Web];W-->A[API];A-->D[(DB)]",
+    "data_diagram": "graph LR;User-->Course;Course-->Lecture;User-->Session",
+    "deployment_diagram": "graph TB;LB-->Web;LB-->API;API-->DB",
+    "integration_diagram": "sequenceDiagram;U->>W:Pay;W->>S:Stripe;S-->>W:OK"
+  },
+  "tkcs": {
+    "legal_basis": "Luật Công nghệ thông tin 2006; Nghị định 45/2026/NĐ-CP (thay thế nội dung tương ứng NĐ 73/2019); hướng dẫn ứng dụng CNTT tại cơ quan/đơn vị. [CẦN BỔ SUNG: văn bản nội bộ phê duyệt]",
+    "current_state": "Nghiệp vụ đào tạo/kiểm tra trực tuyến; nhu cầu chống gian lận và xác thực danh tính trước thi; thanh toán tự phục vụ qua cổng Stripe.",
+    "necessity": "Giảm chi phí tổ chức, mở rộng quy mô, tăng niềm tin bằng eKYC + giám sát AI, quản lý nội dung số tập trung.",
+    "architecture_compliance": "Phù hợp hướng số hóa giáo dục; tách tầng trình bày, nghiệp vụ, dữ liệu; log kiểm toán eKYC.",
+    "technology_rationale": "Stack TypeScript thống nhất; NestJS mô-đun hóa; Next.js trải nghiệm web; PostgreSQL toàn vẹn; Redis độ trễ thấp; container triển khai đồng nhất môi trường.",
+    "detailed_design_summary": "Bốn mảng: (1) danh tính & mua sắm, (2) khóa học & bài giảng, (3) thi + proctoring, (4) vận hành & giám sát. API REST + sự kiện nội bộ qua proctoring.",
+    "functional_design": "Chức năng theo use case: đăng ký, học, thi, thanh toán, quản trị khóa học; bảo toàn nghiệp vụ ở service layer, policy role trên controller.",
+    "db_design_summary": "Schema ứng dụng: users, courses, sections, lectures, questions, payments. Schema proctoring: exam_schedules, candidates, sessions, ekyc, audit.",
+    "integration_design_summary": "Stripe: intent + webhook idempotent. S3: upload ảnh thẳng hoặc qua pre-signed. Email: queue/async (khuyến nghị).",
+    "security_plan": "Xác thực JWT, phân quyền theo role, bảo mật webhook, giới hạn rate login, cô lập secret qua biến môi trường, audit thao tác PII.",
+    "operations_plan": "Ghi log ứng dụng, healthcheck, backup DB theo lịch, theo dõi queue thanh toán, rotation secret.",
+    "timeline": "MVP: Q2; mở rộng: Q3 (báo cáo, chứng chỉ, đa ngôn ngữ) — [CẦN BỔ SUNG lịch phê duyệt].",
+    "total_investment": "[CẦN BỔ SUNG: dự toán theo cơ cấu dự án].",
+    "operating_cost": "Hạ tầng cloud, license tool, bảo trì, hỗ trợ vận hành ước tính theo số lượt thi/GB lưu trữ — [CẦN BỔ SUNG].",
+    "project_management": "Mô hình scrum/PMO nội bộ, backlog theo feature-map; QA song song; release có checklist.",
+    "investment_type": "Nâng cấp / mở rộng nền tảng số",
+    "funding_source": "Vốn tự có R&D (điền theo cơ cấu thực tế)",
+    "project_duration": "6–9 tháng theo từng giai đoạn — [CẦN BỔ SUNG]",
+    "architecture_diagram": "graph TB;U-->W;W-->A;A-->D",
+    "data_model_diagram": "graph LR;C[Course]-->S[Section]-->L[Lecture]"
+  },
+  "tkct": {
+    "system_description": "Thiết kế chi tiết bám code-facts: module auth, public catalog, student courses, courses (instructor), examination, ekyc, payments, internal.",
+    "architecture_reference": "Xem tài liệu TKKT — kiến trúc tổng thể; tài liệu này mô tả bảng/API/màn hình ánh xạ triển khai.",
+    "modules": [
+      {
+        "name": "auth",
+        "description": "Đăng ký, đăng nhập, JWT, cập nhật mật khẩu, verify email.",
+        "flow_description": "Client POST /auth/login → trả về access token → mọi request có Bearer.",
+        "business_rules": "Mật khẩu hash bcrypt; email unique; verify trước khi tính năng nhạy cảm.",
+        "input_data": "identifier/email, password, token reset",
+        "output_data": "JWT, profile /auth/me",
+        "feature_ids": ["F-001", "F-020", "F-021"]
+      },
+      {
+        "name": "examination + ekyc",
+        "description": "Lịch thi, ứng viên, session thi, nộp bài, eKYC session.",
+        "flow_description": "Lấy lịch → đăng ký ứng viên → eKYC → tạo session → lưu câu trả lời → nộp bài.",
+        "business_rules": "eKYC phải pass trước session; nộp một lần; vi phạm từ proctoring ghi qua internal API.",
+        "input_data": "scheduleId, cccd, face images",
+        "output_data": "session state, kết quả, violation flags",
+        "feature_ids": ["F-004", "F-005", "F-006", "F-012", "F-013", "F-014", "F-015"]
+      },
+      {
+        "name": "courses + sections + questions",
+        "description": "CRUD khóa, chương, bài giảng, ngân hàng câu hỏi, đề thi và publish.",
+        "flow_description": "Draft → thêm sections/lectures → ngân hàng câu hỏi → tạo exam → attach questions → publish.",
+        "business_rules": "Chỉ instructor sở hữu khóa; reorder order unique; exam questions tham chiếu question_id.",
+        "input_data": "courseId, sectionId, lectureId, questionId, examId",
+        "output_data": "Entities persisted; catalog chỉ hiện published",
+        "feature_ids": ["F-008", "F-009", "F-016", "F-017", "F-018", "F-019"]
+      },
+      {
+        "name": "student-courses",
+        "description": "Học viên: chi tiết khóa đã ghi danh, Q&A, complete lecture.",
+        "flow_description": "GET enrolled → PATCH complete từng lecture → POST QA.",
+        "business_rules": "Enrollment guard; chỉ thao tác trên khóa đã mua/ghi danh.",
+        "input_data": "courseId, lectureId, question text",
+        "output_data": "Progress, QA threads",
+        "feature_ids": ["F-010", "F-011"]
+      },
+      {
+        "name": "payments",
+        "description": "Stripe PaymentIntent, webhook, lịch sử thanh toán.",
+        "flow_description": "create-intent → client thanh toán → webhook cập nhật payment row.",
+        "business_rules": "Webhook verify signature; idempotency theo stripe event id.",
+        "input_data": "courseId, amount, stripe event",
+        "output_data": "payment status succeeded/failed",
+        "feature_ids": ["F-022"]
+      },
+      {
+        "name": "certificates",
+        "description": "Sinh chứng chỉ sau khóa/thi; tra cứu public verify code.",
+        "flow_description": "Outbox/job emit certificate → verify endpoint public read.",
+        "business_rules": "verify_code unique; không lộ PII quá verify payload.",
+        "input_data": "verifyCode",
+        "output_data": "certificate metadata",
+        "feature_ids": ["F-023"]
+      },
+      {
+        "name": "internal + realtime",
+        "description": "Internal REST cho proctoring; WS events TAB_SWITCH, NO_FACE, CAMERA_DROP.",
+        "flow_description": "Proctoring gửi violation → API persist → WS notify client.",
+        "business_rules": "internal-token only; rate limit violations.",
+        "input_data": "sessionId, violation payload",
+        "output_data": "SESSION_FLAGGED, AUTO_SUBMITTED",
+        "feature_ids": ["F-024"]
+      }
+    ],
+    "db_description": "TypeORM: public schema bảng nghiệp vụ; schema proctoring cho thi. Khóa ngoại user_id, course_id; index thường theo lịch thi/candidate.",
+    "db_tables": [
+      {
+        "name": "courses",
+        "description": "Khóa học",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "nullable": false,
+            "description": "PK",
+            "constraints": "PK"
+          },
+          {
+            "name": "instructor_id",
+            "type": "uuid",
+            "nullable": false,
+            "description": "FK user",
+            "constraints": "FK"
+          },
+          {
+            "name": "title",
+            "type": "varchar",
+            "nullable": false,
+            "description": "Tên",
+            "constraints": ""
+          },
+          {
+            "name": "status",
+            "type": "enum",
+            "nullable": false,
+            "description": "draft/published",
+            "constraints": ""
+          }
+        ]
+      },
+      {
+        "name": "proctoring.exam_sessions",
+        "description": "Phiên thi",
+        "columns": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "nullable": false,
+            "description": "PK",
+            "constraints": "PK"
+          },
+          {
+            "name": "candidate_id",
+            "type": "uuid",
+            "nullable": false,
+            "description": "FK ứng viên",
+            "constraints": "FK"
+          },
+          {
+            "name": "status",
+            "type": "varchar",
+            "nullable": false,
+            "description": "in_progress/submitted/flagged",
+            "constraints": ""
+          }
+        ]
+      },
+      {
+        "name": "payments",
+        "description": "Giao dịch Stripe",
+        "columns": [
+          { "name": "id", "type": "uuid", "nullable": false, "description": "PK", "constraints": "PK" },
+          { "name": "user_id", "type": "uuid", "nullable": false, "description": "FK", "constraints": "FK" },
+          { "name": "course_id", "type": "uuid", "nullable": true, "description": "FK course", "constraints": "FK" },
+          { "name": "amount", "type": "numeric", "nullable": false, "description": "Số tiền", "constraints": "" },
+          { "name": "status", "type": "varchar", "nullable": false, "description": "pending/succeeded/failed", "constraints": "" }
+        ]
+      },
+      {
+        "name": "proctoring.certificates",
+        "description": "Chứng chỉ",
+        "columns": [
+          { "name": "id", "type": "uuid", "nullable": false, "description": "PK", "constraints": "PK" },
+          { "name": "verify_code", "type": "varchar", "nullable": false, "description": "Mã tra cứu", "constraints": "UNIQUE" },
+          { "name": "user_id", "type": "uuid", "nullable": false, "description": "Người nhận", "constraints": "FK" }
+        ]
+      }
+    ],
+    "api_description": "REST dưới /api/v1: auth công khai, public/courses không auth, resource giảng viên yêu cầu instructor guard, student routes với student guard + enrollment khi cần.",
+    "api_details": [
+      {
+        "path": "/api/v1/auth/login",
+        "method": "POST",
+        "summary": "Cấp JWT",
+        "description": "Body: email/username + password",
+        "auth": "public",
+        "request_body": "{ identifier, password }",
+        "response_body": "{ access_token, user }",
+        "parameters": [],
+        "error_codes": ["401", "400"]
+      },
+      {
+        "path": "/api/v1/public/courses",
+        "method": "GET",
+        "summary": "Catalog published",
+        "auth": "public",
+        "request_body": "",
+        "response_body": "Array CourseSummary"
+      },
+      {
+        "path": "/api/v1/student/courses/:courseId/qa",
+        "method": "POST",
+        "summary": "Đặt câu hỏi Q&A",
+        "auth": "jwt student",
+        "request_body": "{ text }",
+        "response_body": "{ question }",
+        "parameters": [],
+        "error_codes": ["400", "403"]
+      },
+      {
+        "path": "/api/v1/payments/create-intent",
+        "method": "POST",
+        "summary": "Stripe PaymentIntent",
+        "auth": "jwt",
+        "request_body": "{ courseId }",
+        "response_body": "{ clientSecret }",
+        "parameters": [],
+        "error_codes": ["400", "402"]
+      },
+      {
+        "path": "/api/v1/certificates/verify/:verifyCode",
+        "method": "GET",
+        "summary": "Tra cứu chứng chỉ",
+        "auth": "public",
+        "request_body": "",
+        "response_body": "Certificate DTO",
+        "parameters": [],
+        "error_codes": ["404"]
+      }
+    ],
+    "ui_guidelines": "Tailwind, responsive; role switch học viên/giảng viên; form rõ ràng, toast phản hồi; khả năng truy cập: focus ring, tương phản màu.",
+    "ui_layout": "Layout học viên: sidebar trái + nội dung; giảng viên: dashboard + danh sách + editor khóa.",
+    "screens": [
+      {
+        "name": "Student course catalog",
+        "description": "Lưới khóa học",
+        "screenshot": "courses-step-01-list.png",
+        "feature_id": "F-001"
+      },
+      {
+        "name": "Instructor course list",
+        "description": "CRUD courses",
+        "screenshot": "instructor-courses-step-01-list.png",
+        "feature_id": "F-008"
+      }
+    ],
+    "integration_design": "Webhook Stripe: xác thực chữ ký, idempotency key; upload S3: policy presigned, expire ngắn.",
+    "security_design": "Guards Nest; mã hóa mật khẩu; scrub log; internal token proctoring; audit PII.",
+    "architecture_overview_diagram": "graph LR;W[Web]-->A[API]-->D[(DB)]",
+    "db_erd_diagram": "graph LR;User-->Course;User-->Candidate",
+    "ui_layout_diagram": "flowchart TB;Nav-->Content",
+    "integration_diagram": "graph LR;API-->Stripe;API-->S3",
+    "traceability_description": "F-001..F-024: features theo services (học tập, thi, giảng viên, identity, commerce, trust); TC-UI-001..024; TC-API-001..027; tkct.modules; architecture.apis; code-facts.json đồng bộ route."
+  }
+}

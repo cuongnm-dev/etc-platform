@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -96,6 +97,61 @@ def validate(data_path: str) -> str:
     return json.dumps(result.to_dict(), ensure_ascii=False, indent=2)
 
 
+def _run_export_job(
+    name: str,
+    spec: dict,
+    tpl_path: Path,
+    data_file: Path,
+    out_dir: Path,
+    screenshots_dir: str | None,
+    diagrams_dir: str | None,
+) -> dict:
+    """Execute a single export job — safe to call from a thread pool."""
+    from etc_docgen.engines import docx as docx_engine
+    from etc_docgen.engines import xlsx as xlsx_engine
+    from etc_docgen.paths import schema as schema_path
+
+    output_path = out_dir / spec["output"]
+    try:
+        if spec["engine"] == "xlsx":
+            report = xlsx_engine.fill(
+                tpl_path,
+                schema_path("test-case.xlsx.schema.yaml"),
+                data_file,
+                output_path,
+            )
+            return {
+                "target": name,
+                "success": not report.validator_failures,
+                "output": str(output_path),
+                "warnings": report.validator_failures[:5] if report.validator_failures else [],
+            }
+        ss_dir = Path(screenshots_dir) if screenshots_dir and name == "hdsd" else None
+        if ss_dir and not ss_dir.exists():
+            ss_dir = None
+        dg_dir = Path(diagrams_dir) if diagrams_dir else None
+        if dg_dir and not dg_dir.exists():
+            dg_dir = None
+        report = docx_engine.render(
+            tpl_path,
+            data_file,
+            output_path,
+            screenshots_dir=ss_dir,
+            diagrams_dir=dg_dir,
+        )
+        return {
+            "target": name,
+            "success": not report.errors,
+            "output": str(output_path),
+            "screenshots_embedded": report.screenshots_embedded,
+            "screenshots_missing": report.screenshots_missing,
+            "warnings": report.warnings[:5],
+            "errors": report.errors[:5],
+        }
+    except Exception as e:
+        return {"target": name, "success": False, "error": str(e)}
+
+
 @mcp.tool()
 def export(
     data_path: str,
@@ -120,9 +176,6 @@ def export(
         targets: Which files to export. Options: xlsx, hdsd, tkkt, tkcs, tkct. Default: all.
         screenshots_dir: Directory containing screenshots for HDSD (optional)
     """
-    from etc_docgen.engines import docx as docx_engine
-    from etc_docgen.engines import xlsx as xlsx_engine
-
     data_file = Path(data_path)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -187,63 +240,36 @@ def export(
         },
     }
 
+    # Resolve template paths eagerly (fail-fast before spawning threads)
+    active_jobs: dict[str, tuple[dict, Path]] = {}
     results = []
     for name, spec in jobs.items():
         if name not in target_set:
             continue
-
-        output_path = out_dir / spec["output"]
         try:
             tpl_path = template(spec["template"])
         except FileNotFoundError:
             results.append({"target": name, "success": False, "error": "Template not found"})
             continue
+        active_jobs[name] = (spec, tpl_path)
 
-        try:
-            if spec["engine"] == "xlsx":
-                from etc_docgen.paths import schema as schema_path
-
-                report = xlsx_engine.fill(
-                    tpl_path,
-                    schema_path("test-case.xlsx.schema.yaml"),
-                    data_file,
-                    output_path,
-                )
-                results.append(
-                    {
-                        "target": name,
-                        "success": not report.validator_failures,
-                        "output": str(output_path),
-                        "warnings": report.validator_failures[:5]
-                        if report.validator_failures
-                        else [],
-                    }
-                )
-            else:
-                ss_dir = Path(screenshots_dir) if screenshots_dir and name == "hdsd" else None
-                if ss_dir and not ss_dir.exists():
-                    ss_dir = None
-
-                dg_dir = Path(diagrams_dir) if diagrams_dir else None
-                if dg_dir and not dg_dir.exists():
-                    dg_dir = None
-                report = docx_engine.render(
-                    tpl_path, data_file, output_path,
-                    screenshots_dir=ss_dir, diagrams_dir=dg_dir,
-                )
-                results.append(
-                    {
-                        "target": name,
-                        "success": not report.errors,
-                        "output": str(output_path),
-                        "screenshots_embedded": report.screenshots_embedded,
-                        "screenshots_missing": report.screenshots_missing,
-                        "warnings": report.warnings[:5],
-                        "errors": report.errors[:5],
-                    }
-                )
-        except Exception as e:
-            results.append({"target": name, "success": False, "error": str(e)})
+    # Run export jobs in parallel
+    with ThreadPoolExecutor(max_workers=max(len(active_jobs), 1)) as executor:
+        futures = {
+            executor.submit(
+                _run_export_job,
+                name,
+                spec,
+                tpl_path,
+                data_file,
+                out_dir,
+                screenshots_dir,
+                diagrams_dir,
+            ): name
+            for name, (spec, tpl_path) in active_jobs.items()
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
 
     all_ok = all(r["success"] for r in results)
     return json.dumps(

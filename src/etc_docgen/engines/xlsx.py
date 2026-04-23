@@ -34,6 +34,7 @@ import re
 import shutil
 import sys
 import tempfile
+import unicodedata
 import zipfile
 from copy import copy
 from dataclasses import dataclass, field
@@ -157,8 +158,6 @@ def apply_transform(value: Any, transform: str, schema: dict) -> Any:
         if s in pm:
             return pm[s]
         # Normalize: strip diacritics for fuzzy match
-        import unicodedata
-
         s_norm = (
             "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
             .lower()
@@ -251,8 +250,11 @@ def get_merge_anchor(ws, cell_ref: str) -> str:
 
 
 def is_formula_cell(cell_ref: str, sheet_schema: dict) -> bool:
-    preserve = sheet_schema.get("preserve", {}) or {}
-    formula_cells = set(preserve.get("formula_cells") or [])
+    formula_cells = sheet_schema.get("_formula_cells_cache")
+    if formula_cells is None:
+        preserve = sheet_schema.get("preserve", {}) or {}
+        formula_cells = frozenset(preserve.get("formula_cells") or [])
+        sheet_schema["_formula_cells_cache"] = formula_cells
     return cell_ref in formula_cells
 
 
@@ -449,7 +451,9 @@ def process_data_table(ws, sheet_schema: dict, data: dict, schema: dict, report:
     protected = set(sheet_schema.get("preserve", {}).get("protected_columns_in_data") or [])
     safe_clear_cols = [c for c in clear_cols if c not in protected]
 
-    for row_num in range(start_row, end_cap + 1):
+    # Clear only rows we'll overwrite; STEP 4 handles template residuals beyond last data row
+    data_clear_end = start_row + len(rows_data)  # exclusive upper bound
+    for row_num in range(start_row, min(data_clear_end, end_cap + 1)):
         for col_letter in safe_clear_cols:
             cell_ref = f"{col_letter}{row_num}"
             if is_formula_cell(cell_ref, sheet_schema):
@@ -457,7 +461,7 @@ def process_data_table(ws, sheet_schema: dict, data: dict, schema: dict, report:
             if isinstance(ws[cell_ref], MergedCell):
                 continue
             ws[cell_ref] = None
-    report.rows_cleared += end_cap - start_row + 1
+    report.rows_cleared += min(data_clear_end, end_cap + 1) - start_row
 
     # ── STEP 3: Write rows ──
     sheet_stats = report.per_sheet.setdefault(ws.title, {"writes": 0, "rows": 0})
@@ -781,12 +785,21 @@ def _restore_x14_extensions(
     2. Adjust sqref for actual data row count
     3. Inject into the corresponding sheet XML in the output ZIP
     """
-    sheet_map = _get_sheet_xml_map(template_path)
     sheets_schema = schema.get("sheets") or {}
-
     patches: dict[str, str] = {}  # xml_path → adjusted ext block
 
+    # Build sheet map + read sheet XMLs in a single template ZIP open
+    ns_wb = {"x": _SHEET_NS}
+    rid_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     with zipfile.ZipFile(template_path, "r") as zf:
+        wb_xml = ET.fromstring(zf.read("xl/workbook.xml"))
+        sheet_nodes = wb_xml.findall(".//x:sheets/x:sheet", ns_wb)
+        name_to_rid = {s.get("name"): s.get(f"{{{rid_ns}}}id") for s in sheet_nodes}
+        rels_root = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+        rid_to_target = {rel.get("Id"): "xl/" + rel.get("Target") for rel in rels_root}
+        sheet_map = {
+            name: rid_to_target[rid] for name, rid in name_to_rid.items() if rid in rid_to_target
+        }
         for sheet_name, xml_path in sheet_map.items():
             if sheet_name not in sheets_schema:
                 continue
@@ -898,9 +911,8 @@ def fill(template_path: Path, schema_path: Path, data_path: Path, output_path: P
     # Restore x14 extension data validations (stripped by openpyxl on load)
     _restore_x14_extensions(template_path, output_path, schema, data, report)
 
-    # Validate saved workbook (reload to verify on-disk state)
-    wb_check = load_workbook(output_path, data_only=False, keep_links=True)
-    run_validators(wb_check, schema, report)
+    # Validate (use in-memory workbook — avoids redundant reload from disk)
+    run_validators(wb, schema, report)
 
     return report
 

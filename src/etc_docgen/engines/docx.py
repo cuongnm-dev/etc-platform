@@ -31,7 +31,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shutil
 import sys
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -96,6 +99,12 @@ def build_image_context(
                     step["screenshot_image"] = None
         return data
 
+    # Pre-index directory contents once to avoid repeated Path.exists() per screenshot
+    stem_to_path: dict[str, Path] = {}
+    for entry in screenshots_dir.iterdir():
+        if entry.is_file():
+            stem_to_path[entry.stem] = entry
+
     for svc in data.get("services", []):
         for feat in svc.get("features", []):
             for step in feat.get("steps", []):
@@ -103,12 +112,8 @@ def build_image_context(
                 if not fn:
                     step["screenshot_image"] = None
                     continue
-                candidates = [screenshots_dir / fn]
-                # Try alternate extensions (JPEG from post-processor)
                 stem = Path(fn).stem
-                for ext in (".png", ".jpg", ".jpeg", ".webp"):
-                    candidates.append(screenshots_dir / (stem + ext))
-                resolved = next((c for c in candidates if c.exists()), None)
+                resolved = stem_to_path.get(stem)
                 if resolved:
                     step["screenshot_image"] = InlineImage(tpl, str(resolved), width=Inches(5.5))
                     report.screenshots_embedded += 1
@@ -209,10 +214,6 @@ def strip_orphan_media(docx_path: Path) -> int:
     inherited from v1.2) — after DocxTpl render clears original body,
     those media become orphan and can be safely stripped.
     """
-    import re
-    import shutil
-    import zipfile
-
     REL_FILE = "word/_rels/document.xml.rels"
     DOC_FILE = "word/document.xml"
 
@@ -261,11 +262,127 @@ def strip_orphan_media(docx_path: Path) -> int:
     return removed
 
 
+# ─────────────────────────── Combined post-processing ───────────────────────────
+
+
+def _post_process_docx(docx_path: Path) -> tuple[int, list[str]]:
+    """Single-pass post-processing: TOC dirty + orphan media strip + residual check.
+
+    Replaces three separate I/O operations (mark_toc_dirty, strip_orphan_media,
+    validation Document load) with one ZIP read + one conditional ZIP write.
+
+    Returns:
+        (orphans_removed, residual_jinja_markers)
+    """
+    REL_FILE = "word/_rels/document.xml.rels"
+    DOC_FILE = "word/document.xml"
+    SET_FILE = "word/settings.xml"
+
+    try:
+        with zipfile.ZipFile(docx_path, "r") as zin:
+            all_files = set(zin.namelist())
+            doc_raw = zin.read(DOC_FILE) if DOC_FILE in all_files else b""
+            set_raw = zin.read(SET_FILE) if SET_FILE in all_files else b""
+            rels_raw = zin.read(REL_FILE).decode("utf-8") if REL_FILE in all_files else ""
+    except (KeyError, zipfile.BadZipFile):
+        return 0, []
+
+    # ── 1. Detect orphan media ──
+    orphan_rels: dict[str, str] = {}
+    new_rels = rels_raw
+    if rels_raw and doc_raw:
+        used_rids = set(re.findall(r'r:(?:embed|link|id)="([^"]+)"', doc_raw.decode("utf-8")))
+        rel_pat = re.compile(
+            r'<Relationship\s+[^/]*Id="([^"]+)"[^/]*Target="(media/[^"]+|embeddings/[^"]+)"[^/]*/>',
+            re.DOTALL,
+        )
+        for m in rel_pat.finditer(rels_raw):
+            rid, target = m.group(1), m.group(2)
+            if rid not in used_rids:
+                orphan_rels[rid] = target
+        for rid in orphan_rels:
+            new_rels = re.sub(
+                rf'<Relationship\s+[^/]*Id="{re.escape(rid)}"[^/]*/>',
+                "",
+                new_rels,
+            )
+    orphan_targets = {f"word/{t}" for t in orphan_rels.values()}
+
+    # ── 2. Mark TOC dirty in settings.xml via regex (preserves all namespace decls) ──
+    new_set_raw = set_raw
+    if set_raw:
+        if b"w:updateFields" not in set_raw:
+            new_set_raw = re.sub(
+                rb"(</w:settings>)",
+                rb'<w:updateFields w:val="true"/>\1',
+                set_raw,
+            )
+        elif b'w:val="true"' not in set_raw:
+            new_set_raw = re.sub(
+                rb"(<w:updateFields\b[^/]*/?>)",
+                rb'<w:updateFields w:val="true"/>',
+                set_raw,
+            )
+
+    # ── 3. Mark fldChar dirty + collect residual Jinja markers in document.xml ──
+    new_doc_raw = doc_raw
+    residuals: list[str] = []
+    if doc_raw:
+        doc_text = doc_raw.decode("utf-8")
+        for marker in ("{{", "}}", "{%", "%}"):
+            if marker in doc_text:
+                residuals.append(marker)
+        if b'w:fldCharType="begin"' in doc_raw:
+            # Add w:dirty="true" to every <w:fldChar ... w:fldCharType="begin" ...> element
+            new_doc_raw = re.sub(
+                rb'(<w:fldChar\b[^>]*?w:fldCharType="begin"[^>]*?)(/?>)',
+                rb'\1 w:dirty="true"\2',
+                doc_raw,
+            )
+            # Collapse accidental duplicates if attribute was already present
+            new_doc_raw = re.sub(
+                rb'(w:dirty="true"\s+)+w:dirty="true"',
+                rb'w:dirty="true"',
+                new_doc_raw,
+            )
+
+    # ── 4. Rebuild ZIP only if changes are needed ──
+    needs_rebuild = bool(orphan_rels) or new_set_raw != set_raw or new_doc_raw != doc_raw
+    if not needs_rebuild:
+        return 0, residuals
+
+    tmp = docx_path.with_suffix(".tmp.docx")
+    try:
+        with zipfile.ZipFile(docx_path, "r") as zin:
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    fn = item.filename
+                    if fn in orphan_targets:
+                        continue  # drop orphan media
+                    if fn == REL_FILE and orphan_rels:
+                        zout.writestr(item, new_rels.encode("utf-8"))
+                    elif fn == SET_FILE and new_set_raw != set_raw:
+                        zout.writestr(item, new_set_raw)
+                    elif fn == DOC_FILE and new_doc_raw != doc_raw:
+                        zout.writestr(item, new_doc_raw)
+                    else:
+                        zout.writestr(item, zin.read(fn))
+        shutil.move(str(tmp), str(docx_path))
+    except Exception:
+        if tmp.exists():
+            tmp.unlink()
+        raise
+
+    return len(orphan_rels), residuals
+
+
 # ─────────────────────────── Main render ───────────────────────────
 
 
 def render(
-    template_path: Path, data_path: Path, output_path: Path,
+    template_path: Path,
+    data_path: Path,
+    output_path: Path,
     screenshots_dir: Path | None = None,
     diagrams_dir: Path | None = None,
 ) -> RenderReport:
@@ -334,32 +451,15 @@ def render(
         report.errors.append(f"Save failed: {e}")
         return report
 
-    # Post-process
+    # Post-process: TOC dirty + orphan strip + residual check (single ZIP pass)
     try:
-        mark_toc_dirty(output_path)
-    except Exception as e:
-        report.warnings.append(f"TOC dirty failed: {e}")
-
-    try:
-        orphans = strip_orphan_media(output_path)
+        orphans, residuals = _post_process_docx(output_path)
         if orphans > 0:
             report.warnings.append(f"Stripped {orphans} orphan media files")
-    except Exception as e:
-        report.warnings.append(f"Orphan cleanup failed: {e}")
-
-    # Validate output
-    try:
-        doc = Document(output_path)
-        # Check for residual Jinja tokens
-        full_text = "\n".join(p.text for p in doc.paragraphs)
-        residuals = []
-        for marker in ("{{", "}}", "{%", "%}"):
-            if marker in full_text:
-                residuals.append(marker)
         if residuals:
             report.warnings.append(f"Residual Jinja markers in output: {residuals}")
     except Exception as e:
-        report.warnings.append(f"Output validation failed: {e}")
+        report.warnings.append(f"Post-processing failed: {e}")
 
     return report
 
