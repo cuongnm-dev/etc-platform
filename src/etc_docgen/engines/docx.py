@@ -115,7 +115,7 @@ def build_image_context(
                 stem = Path(fn).stem
                 resolved = stem_to_path.get(stem)
                 if resolved:
-                    step["screenshot_image"] = InlineImage(tpl, str(resolved), width=Inches(5.5))
+                    step["screenshot_image"] = InlineImage(tpl, str(resolved), width=Mm(165))
                     report.screenshots_embedded += 1
                 else:
                     step["screenshot_image"] = None
@@ -128,7 +128,7 @@ def _resolve_diagram(
     filename: str,
     diagrams_dir: Path | None,
     report: RenderReport,
-    width: Inches = Inches(5.5),
+    width: Mm = Mm(165),
 ) -> InlineImage | None:
     """Resolve a diagram filename to InlineImage, or None if missing."""
     if not filename or not diagrams_dir or not diagrams_dir.exists():
@@ -193,14 +193,16 @@ def build_diagram_context(
 
 
 def mark_toc_dirty(docx_path: Path):
-    """Set updateFields=true + mark TOC fields as dirty so Word auto-refreshes."""
+    """Mark TOC fields as dirty (w:dirty=true) without triggering Word's update dialog.
+
+    Does NOT set updateFields=true — that causes the "Do you want to update fields?"
+    prompt on every open. Fields are marked dirty so manual F9 / Ctrl+A→F9 refreshes work.
+    """
     doc = Document(docx_path)
     settings = doc.settings.element
     upd = settings.find(f"{WNS_QN}updateFields")
-    if upd is None:
-        upd = OxmlElement("w:updateFields")
-        settings.append(upd)
-    upd.set(qn("w:val"), "true")
+    if upd is not None:
+        upd.set(qn("w:val"), "false")  # suppress auto-update dialog
     for fc in doc.element.body.iter(f"{WNS_QN}fldChar"):
         if fc.get(qn("w:fldCharType")) == "begin":
             fc.set(qn("w:dirty"), "true")
@@ -308,19 +310,17 @@ def _post_process_docx(docx_path: Path) -> tuple[int, list[str]]:
             )
     orphan_targets = {f"word/{t}" for t in orphan_rels.values()}
 
-    # ── 2. Mark TOC dirty in settings.xml via regex (preserves all namespace decls) ──
+    # ── 2. Suppress auto-update dialog: ensure updateFields=false in settings.xml ──
+    # Word shows "Do you want to update fields?" on open when updateFields=true.
+    # We suppress that dialog by keeping updateFields=false (or absent).
+    # Fields are still marked w:dirty="true" below so manual F9/Ctrl+A→F9 refreshes work.
     new_set_raw = set_raw
-    if set_raw:
-        if b"w:updateFields" not in set_raw:
+    if set_raw and b"w:updateFields" in set_raw:
+        # If template had updateFields=true, neutralise it
+        if b'w:val="true"' in set_raw:
             new_set_raw = re.sub(
-                rb"(</w:settings>)",
-                rb'<w:updateFields w:val="true"/>\1',
-                set_raw,
-            )
-        elif b'w:val="true"' not in set_raw:
-            new_set_raw = re.sub(
-                rb"(<w:updateFields\b[^/]*/?>)",
-                rb'<w:updateFields w:val="true"/>',
+                rb'(<w:updateFields\b[^/]*/?>)',
+                rb'<w:updateFields w:val="false"/>',
                 set_raw,
             )
 

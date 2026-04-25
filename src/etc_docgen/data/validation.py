@@ -113,6 +113,15 @@ def validate_content_data(data: dict) -> ValidationResult:
                 priority_counts[pri_name] = priority_counts.get(pri_name, 0) + 1
     result.stats["priority_distribution"] = priority_counts
 
+    # ── Step 7: Quality checks (Phase 1 integrity + Phase 2/3 depth) ──
+    try:
+        from etc_docgen.data.quality_checks import run_all_quality_checks
+        quality_warnings = run_all_quality_checks(data)
+        result.warnings.extend(quality_warnings)
+        result.stats["quality_warnings_count"] = len(quality_warnings)
+    except Exception as e:
+        result.warnings.append(f"quality_checks failed: {e}")
+
     return result
 
 

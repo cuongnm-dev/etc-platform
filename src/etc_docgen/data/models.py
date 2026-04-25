@@ -201,6 +201,16 @@ class TestCaseRow(BaseModel):
                 return result
         return Priority.NORMAL
 
+    @model_validator(mode="after")
+    def require_steps_or_expected(self) -> "TestCaseRow":
+        """A TC with no steps AND no expected results is unusable — catches empty drafts."""
+        if not self.steps and not self.expected:
+            raise ValueError(
+                f"TestCaseRow '{self.name}': both steps[] and expected[] are empty. "
+                "Provide at least one step with action+expected."
+            )
+        return self
+
     def get_steps_for_excel(self) -> list[dict]:
         """Normalize steps to [{no, action}] for Excel col C."""
         if self.steps:
@@ -262,20 +272,44 @@ class FeatureStep(BaseModel):
     expected: str = ""
 
 
-class DialogComponent(BaseModel):
-    name: str
-    description: str = ""
+class DialogButton(BaseModel):
+    label: str = Field(description="Button label as shown in UI, e.g. 'Xác nhận', 'Hủy', 'Đóng'")
+    action: str = Field(description="What happens when clicked, e.g. 'Lưu và đóng dialog', 'Hủy thao tác, đóng dialog'")
+
+
+class DialogField(BaseModel):
+    """A form field inside a dialog (only for type='form')."""
+    label: str
+    type: str = Field(description="Input type: Text, Dropdown, Checkbox, Textarea, DatePicker")
+    required: bool = False
+    rules: str = Field(default="", description="Validation rules, e.g. '@Length(1,200)', 'Bắt buộc'")
 
 
 class Dialog(BaseModel):
-    title: str
-    components: list[DialogComponent] = Field(default_factory=list)
+    """A popup dialog/modal that appears during feature use."""
+    title: str = Field(description="Dialog title as shown in UI header")
+    type: str = Field(
+        default="confirm",
+        description="Dialog type: 'confirm' (yes/no prompt), 'form' (modal with inputs), 'alert' (info/warning/error message), 'info' (read-only display)"
+    )
+    trigger: str = Field(default="", description="Which step/action triggers this dialog, e.g. 'Click nút Xóa', 'Click Lưu khi có lỗi'")
+    message: str = Field(default="", description="Dialog body text shown to user")
+    buttons: list[DialogButton] = Field(default_factory=list, description="Action buttons in the dialog footer")
+    fields: list[DialogField] = Field(default_factory=list, description="Form fields inside dialog (for type='form' only)")
 
 
 class ErrorCase(BaseModel):
     trigger_step: int = 0
     condition: str = ""
     message: str = ""
+    expected_http_code: str = Field(
+        default="",
+        description="Expected HTTP status code for API errors, e.g. '400', '401', '422', '500'",
+    )
+    expected_ui_state: str = Field(
+        default="",
+        description="Expected UI state after error, e.g. 'toast đỏ xuất hiện', 'trường highlight đỏ', 'dialog đóng lại'",
+    )
 
 
 class Feature(BaseModel):
@@ -432,13 +466,15 @@ class Architecture(BaseModel):
     data_protection: str = ""
     nfr: list[NfrItem] = Field(default_factory=list)
 
-    # Diagrams (image filenames — resolved to InlineImage at render time)
-    architecture_diagram: str = Field(default="", description="Sơ đồ kiến trúc tổng thể")
-    logical_diagram: str = Field(default="", description="Sơ đồ kiến trúc logic")
-    data_diagram: str = Field(default="", description="Sơ đồ mô hình dữ liệu (ERD tổng quan)")
-    deployment_diagram: str = Field(default="", description="Sơ đồ kiến trúc triển khai")
-    integration_diagram: str = Field(default="", description="Sơ đồ tích hợp hệ thống")
-    security_diagram: str = Field(default="", description="Sơ đồ kiến trúc bảo mật")
+    # Diagrams — FILENAME REFERENCES ONLY (e.g. "architecture_diagram.png").
+    # Raw Mermaid source belongs in top-level ContentData.diagrams[{key}].
+    # Engine auto-renders diagrams.{key} → {key}.png, then docxtpl InlineImage reads these fields.
+    architecture_diagram: str = Field(default="", description="FILENAME ref (e.g. 'architecture_diagram.png'). Mermaid source → diagrams.architecture_diagram. NEVER put raw Mermaid here.")
+    logical_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.logical_diagram.")
+    data_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.data_diagram.")
+    deployment_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.deployment_diagram.")
+    integration_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.integration_diagram.")
+    security_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.security_diagram.")
 
 
 class TkcsData(BaseModel):
@@ -492,9 +528,11 @@ class TkcsData(BaseModel):
     funding_source: str = Field(default="", description="Ngân sách nhà nước / Vốn tự có")
     project_duration: str = Field(default="", description="Thời gian thực hiện dự kiến")
 
-    # Diagrams (image filenames)
-    architecture_diagram: str = Field(default="", description="Sơ đồ kiến trúc phương án chọn")
-    data_model_diagram: str = Field(default="", description="Sơ đồ mô hình dữ liệu tổng quan")
+    # Diagrams — FILENAME REFERENCES ONLY. Mermaid source → ContentData.diagrams[{key}].
+    # For TKCS to avoid key collision with architecture.*, engine may use 'tkcs_' prefix;
+    # but these fields accept either 'architecture_diagram.png' or 'tkcs_architecture_diagram.png'.
+    architecture_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.architecture_diagram or diagrams.tkcs_architecture_diagram.")
+    data_model_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.data_model_diagram or diagrams.tkcs_data_model_diagram.")
 
     # ── NĐ 45/2026 Điều 13 — 11-section expansion (added 2026-04) ──
     # Sec 3c — Mục tiêu đầu tư (tách khỏi necessity)
@@ -591,7 +629,7 @@ class ModuleDesign(BaseModel):
     name: str = ""
     description: str = ""
     flow_description: str = Field(default="", description="Mô tả luồng xử lý")
-    flow_diagram: str = Field(default="", description="Sơ đồ luồng xử lý (image filename)")
+    flow_diagram: str = Field(default="", description="FILENAME ref (e.g. '<module>_flow_diagram.png'). Mermaid source → diagrams.{module}_flow_diagram. NEVER put raw Mermaid here.")
     business_rules: str = Field(default="", description="Quy tắc nghiệp vụ")
     input_data: str = Field(default="", description="Dữ liệu đầu vào")
     output_data: str = Field(default="", description="Dữ liệu đầu ra")
@@ -636,11 +674,12 @@ class TkctData(BaseModel):
     integration_design: str = Field(default="", description="Thiết kế tích hợp chi tiết")
     security_design: str = Field(default="", description="Thiết kế bảo mật chi tiết")
 
-    # Diagrams (image filenames)
-    architecture_overview_diagram: str = Field(default="", description="Sơ đồ kiến trúc tổng quan")
-    db_erd_diagram: str = Field(default="", description="Sơ đồ ERD chi tiết")
-    ui_layout_diagram: str = Field(default="", description="Sơ đồ bố cục giao diện")
-    integration_diagram: str = Field(default="", description="Sơ đồ tích hợp chi tiết")
+    # Diagrams — FILENAME REFERENCES ONLY. Mermaid source → ContentData.diagrams[{key}].
+    # Engine may prefix 'tkct_' to avoid collision; accepts either form.
+    architecture_overview_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.architecture_overview_diagram or diagrams.tkct_architecture_overview_diagram.")
+    db_erd_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.db_erd_diagram or diagrams.tkct_db_erd_diagram.")
+    ui_layout_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.ui_layout_diagram or diagrams.tkct_ui_layout_diagram.")
+    integration_diagram: str = Field(default="", description="FILENAME ref. Mermaid source → diagrams.integration_diagram or diagrams.tkct_integration_diagram.")
 
     # Ma trận truy xuất
     traceability_description: str = Field(

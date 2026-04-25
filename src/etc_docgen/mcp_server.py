@@ -49,6 +49,27 @@ from etc_docgen.paths import template, templates_dir
 
 log = logging.getLogger("etc-docgen.mcp")
 
+# ---------------------------------------------------------------------------
+# DoD whitelist — warnings matching these substrings do NOT block dod_met.
+# Specialists must not loop trying to fix these; they are expected/acceptable.
+# Orchestrator Phase 3.5 validate() still sees them for reporting purposes.
+# ---------------------------------------------------------------------------
+_DOD_WHITELIST_PATTERNS: tuple[str, ...] = (
+    "priority_distribution",       # noisy stats field — not actionable by specialists
+    "features_without_test_cases", # expected before xlsx specialist (03f) runs
+    "flow_diagram",                # optional TKCT module diagrams — may be skipped
+    "tkcs.pm_method",              # TKCS Section 10 — business-only, BA must fill
+    "tkcs.stakeholders",           # TKCS Section 11 — business-only, BA must fill
+    "tkcs.budget",                 # TKCS Section 10 — business-only
+    "tkcs.procurement",            # TKCS Section 10 — business-only
+    "expansion_gap",               # Phase 3g logged gap — intel source incomplete
+)
+
+
+def _is_whitelisted(warning: str) -> bool:
+    """Return True if this warning is on the DoD whitelist (should not block dod_met)."""
+    return any(pat in warning for pat in _DOD_WHITELIST_PATTERNS)
+
 mcp = FastMCP(
     "etc-docgen",
     instructions=(
@@ -56,12 +77,31 @@ mcp = FastMCP(
         "government IT projects. It turns structured data into standardized "
         "documents (HDSD, TKKT, TKCS, TKCT, Test Cases) via a content-data.json "
         "intermediate format.\n\n"
-        "Integration workflow for doc-writer agents:\n"
-        "  1. section_schema(doc_type) → get schema for your section (saves tokens)\n"
-        "  2. Produce JSON matching the schema fields\n"
-        "  3. merge_content(path, json) → write into content-data.json\n"
-        "  4. validate(path) → verify correctness\n"
-        "  5. export(path, out, targets) → render Office files\n\n"
+        "## Specialist write + feedback loop (PRIMARY workflow)\n\n"
+        "Each doc-writer specialist follows this loop until DoD is met:\n\n"
+        "  1. section_schema(doc_type) → receive schema + minimums + banned_phrases\n"
+        "  2. Produce JSON matching schema fields (Vietnamese prose, specific facts)\n"
+        "  3. merge_content(path, json, auto_validate=True)\n"
+        "     → returns {success, validation: {errors[], warnings[], dod_met, action_required}}\n"
+        "  4. If dod_met=false → read every warning in warnings[] → fix content → go to step 3\n"
+        "     Note: warnings_whitelisted[] are informational only — do NOT try to fix them.\n"
+        "  5. Loop exits when dod_met=true (errors:[] AND blocking warnings:[] — whitelisted OK)\n"
+        "  6. export(path, out, targets) → render Office files (Phase 4 only)\n\n"
+        "## Key rule: do NOT call validate() separately\n\n"
+        "merge_content(auto_validate=True) runs full validation inline and returns "
+        "feedback in the same response. Calling validate() as a separate step wastes "
+        "one round-trip. Only call validate() for the final cross-block check in "
+        "Phase 3.5 quality gate (orchestrator role, not specialist role).\n\n"
+        "## Warning routing\n\n"
+        "merge_content returns warnings for ALL blocks. Route to owning specialist:\n"
+        "  architecture.* → tkkt | tkcs.* → tkcs | tkct.* → tkct\n"
+        "  test_cases.*   → xlsx | [F-NNN].* → xlsx | diagrams.* → shared\n\n"
+        "## Definition of Done\n\n"
+        "dod_met:true = errors:[] AND blocking warnings:[] (whitelisted warnings do not block).\n"
+        "Whitelisted patterns: priority_distribution, features_without_test_cases (before xlsx),\n"
+        "  flow_diagram (optional TKCT modules), tkcs.pm_method/stakeholders/budget/procurement\n"
+        "  (business-only fields BA must fill), expansion_gap (Phase 3g logged sections).\n"
+        "These appear in warnings_whitelisted[] — informational only, no action needed.\n\n"
         "Tools: validate, export, schema, section_schema, merge_content, "
         "template_list, template_fork."
     ),
@@ -140,28 +180,33 @@ def get_content_data_schema() -> str:
 
 
 @mcp.tool()
-def validate(data_path: str) -> str:
-    """Validate a content-data.json file against the Pydantic schema.
+def validate(content_data: dict) -> str:
+    """Validate content_data dict against Pydantic schema + quality checks.
 
-    Returns validation result with errors, warnings, and statistics.
-    Use this after producing or editing content-data.json to ensure correctness.
+    Pure API mode — NO filesystem access. Suitable for multi-user hosted MCP deploy.
+
+    Returns validation result with errors, warnings, stats, and elapsed time.
 
     Args:
-        data_path: Path to content-data.json. Must be under /data/{slug}/ in Docker.
+        content_data: Full content-data dict (per `schema()` tool's structure).
+            Pass the whole document state; partial validation is not supported.
     """
-    from etc_docgen.data.validation import validate_file
+    from etc_docgen.data.validation import validate_content_data
 
     t0 = time.monotonic()
-    log.info("validate called: path=%s", data_path)
-    try:
-        path = _resolve_data_path(data_path, must_exist=True)
-    except (ValueError, FileNotFoundError) as exc:
-        log.warning("validate path error: %s", exc)
-        return json.dumps({"valid": False, "errors": [str(exc)], "error_code": "INVALID_PATH"})
+    log.info("validate called: keys=%d", len(content_data) if content_data else 0)
 
-    result = validate_file(path)
+    if not isinstance(content_data, dict):
+        return json.dumps({
+            "valid": False,
+            "errors": ["content_data must be a JSON object/dict"],
+            "error_code": "INVALID_ARGS",
+        })
+
+    result = validate_content_data(content_data)
     elapsed = round(time.monotonic() - t0, 3)
-    log.info("validate done: valid=%s errors=%d elapsed=%.3fs", result.valid, len(result.errors if hasattr(result, 'errors') else []), elapsed)
+    log.info("validate done: valid=%s errors=%d elapsed=%.3fs",
+             result.valid, len(result.errors), elapsed)
     payload = result.to_dict()
     payload["elapsed_s"] = elapsed
     return json.dumps(payload, ensure_ascii=False, indent=2)
@@ -224,137 +269,204 @@ def _run_export_job(
 
 @mcp.tool()
 def export(
-    data_path: str,
-    output_dir: str,
+    content_data: dict,
+    screenshots: dict | None = None,
     targets: list[str] | None = None,
-    screenshots_dir: str | None = None,
-    diagrams_dir: str | None = None,
     auto_render_mermaid: bool = True,
 ) -> str:
-    """Render Office files from content-data.json using bundled ETC templates.
+    """Render Office files from inline content_data. Pure API mode.
 
-    Produces up to 5 files:
+    Produces up to 5 files (returned as base64-encoded blobs in `outputs`):
       - kich-ban-kiem-thu.xlsx  (test cases)
       - huong-dan-su-dung.docx (user manual — HDSD)
       - thiet-ke-kien-truc.docx (architecture design — TKKT)
       - thiet-ke-co-so.docx (basic design — TKCS)
       - thiet-ke-chi-tiet.docx (detailed design — TKCT)
 
-    Auto-renders diagrams declared in `data.diagrams` (SVG Jinja2 hero + Mermaid)
-    into `{output_dir}/diagrams/` before filling DOCX. Supported entry forms:
+    Auto-renders diagrams declared in `content_data.diagrams` (SVG hero + Mermaid)
+    inside server temp dir before DOCX fill. Supported entry forms:
       - Mermaid (string):   "arch": "graph TD\\n..."
       - SVG hero (dict):    "T1": {"template": "kien-truc-4-lop", "data": {...}}
         Available SVG templates: kien-truc-4-lop (T1), ndxp-hub-spoke (T2),
         swimlane-workflow (T3).
 
+    Size limits (MCP message bounds):
+      - content_data:  recommend ≤ 1 MB (≤ 30 features typical)
+      - screenshots:   recommend ≤ 20 MB total base64 (≤ 100 images @ 200 KB each)
+      - outputs returned: ≤ 25 MB total base64 (5 docx + 1 xlsx typically 5-15 MB)
+      - For larger projects: split into multiple export calls per target,
+        OR contact MCP admin to enable session-based upload protocol (future).
+
     Args:
-        data_path: Path to content-data.json
-        output_dir: Directory to write output files
-        targets: Which files to export. Options: xlsx, hdsd, tkkt, tkcs, tkct. Default: all.
-        screenshots_dir: Directory containing screenshots for HDSD (optional)
-        diagrams_dir: Pre-rendered diagrams directory. If set, auto-render is skipped.
-        auto_render_mermaid: If True (default), render `data.diagrams` before DOCX fill.
+        content_data: Full content-data dict (per `schema()` structure).
+        screenshots: Optional `{filename: base64_string}` dict for HDSD images.
+            Filenames must be plain (no `/`, `\\`, `..`).
+        targets: Which docs to export. Options: xlsx, hdsd, tkkt, tkcs, tkct.
+            Default: all 5.
+        auto_render_mermaid: If True (default), render `content_data.diagrams`
+            into PNG before DOCX fill. Set False to skip.
+
+    Returns JSON with:
+        success: bool
+        outputs: {filename: base64_string} for each successfully rendered file
+        targets: per-target status report (incl. screenshots_embedded counts)
+        diagrams: diagram render report
+        elapsed_s: float
     """
+    import base64
+    import tempfile
+
     t0 = time.monotonic()
-    log.info("export called: data=%s out=%s targets=%s", data_path, output_dir, targets)
+    log.info("export called: content_keys=%s targets=%s screenshots=%d",
+             list(content_data.keys()) if content_data else None,
+             targets,
+             len(screenshots) if screenshots else 0)
 
-    # Resolve paths safely
-    try:
-        data_file = _resolve_data_path(data_path, must_exist=True)
-        out_dir = _resolve_data_path(output_dir, allow_write=True)
-    except (ValueError, FileNotFoundError) as exc:
-        log.warning("export path error: %s", exc)
-        return json.dumps({"success": False, "error": str(exc), "error_code": "INVALID_PATH"})
+    if not isinstance(content_data, dict):
+        return json.dumps({"success": False, "error": "content_data must be a dict"})
 
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # Validate screenshots dict
+    if screenshots is not None:
+        if not isinstance(screenshots, dict):
+            return json.dumps({"success": False, "error": "screenshots must be a dict {filename: base64}"})
+        for fn in screenshots.keys():
+            if not isinstance(fn, str) or "/" in fn or "\\" in fn or ".." in fn:
+                return json.dumps({"success": False, "error": f"Invalid screenshot filename: {fn!r}"})
 
     target_set = set(targets or ["xlsx", "hdsd", "tkkt", "tkcs", "tkct"])
 
-    # Auto-render diagrams (SVG hero + Mermaid) if data has `diagrams` block
-    # and caller didn't provide a pre-rendered diagrams_dir.
-    diagram_report = None
-    if auto_render_mermaid and diagrams_dir is None:
-        try:
-            data_preview = json.loads(data_file.read_text(encoding="utf-8"))
-            if data_preview.get("diagrams"):
+    # Use server-side temp dir for the rendering session
+    with tempfile.TemporaryDirectory(prefix="etc-docgen-export-") as tmp:
+        tmp_path = Path(tmp)
+        data_file = tmp_path / "content-data.json"
+        data_file.write_text(json.dumps(content_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # Decode screenshots to temp dir
+        screenshots_dir = None
+        if screenshots:
+            ss_dir = tmp_path / "screenshots"
+            ss_dir.mkdir()
+            for filename, b64 in screenshots.items():
+                try:
+                    (ss_dir / filename).write_bytes(base64.b64decode(b64))
+                except Exception as e:
+                    return json.dumps({"success": False, "error": f"Invalid base64 for {filename}: {e}"})
+            screenshots_dir = str(ss_dir)
+
+        out_dir = tmp_path / "output"
+        out_dir.mkdir()
+
+        # Auto-render diagrams from content_data.diagrams
+        diagrams_dir = None
+        diagram_report = None
+        if auto_render_mermaid and content_data.get("diagrams"):
+            try:
                 from etc_docgen.engines import diagram as diagram_engine
-
                 render_dir = out_dir / "diagrams"
-                dr = diagram_engine.render_all(data_preview, render_dir)
+                dr = diagram_engine.render_all(content_data, render_dir)
                 diagram_report = dr.to_dict()
-                if dr.rendered or any(
-                    (render_dir / f).exists() for f in ("",)  # render_dir created
-                ):
+                if dr.rendered:
                     diagrams_dir = str(render_dir)
-        except Exception as e:
-            diagram_report = {"status": "failed", "error": f"{type(e).__name__}: {e}"}
+            except Exception as e:
+                diagram_report = {"status": "failed", "error": f"{type(e).__name__}: {e}"}
 
-    jobs = {
-        "xlsx": {
-            "template": "test-case.xlsx",
-            "output": "kich-ban-kiem-thu.xlsx",
-            "engine": "xlsx",
-        },
-        "hdsd": {
-            "template": "huong-dan-su-dung.docx",
-            "output": "huong-dan-su-dung.docx",
-            "engine": "docx",
-        },
-        "tkkt": {
-            "template": "thiet-ke-kien-truc.docx",
-            "output": "thiet-ke-kien-truc.docx",
-            "engine": "docx",
-        },
-        "tkcs": {
-            "template": "thiet-ke-co-so.docx",
-            "output": "thiet-ke-co-so.docx",
-            "engine": "docx",
-        },
-        "tkct": {
-            "template": "thiet-ke-chi-tiet.docx",
-            "output": "thiet-ke-chi-tiet.docx",
-            "engine": "docx",
-        },
-    }
-
-    # Resolve template paths eagerly (fail-fast before spawning threads)
-    active_jobs: dict[str, tuple[dict, Path]] = {}
-    results = []
-    for name, spec in jobs.items():
-        if name not in target_set:
-            continue
-        try:
-            tpl_path = template(spec["template"])
-        except FileNotFoundError:
-            results.append({"target": name, "success": False, "error": "Template not found"})
-            continue
-        active_jobs[name] = (spec, tpl_path)
-
-    # Run export jobs in parallel (ThreadPoolExecutor from HEAD)
-    with ThreadPoolExecutor(max_workers=max(len(active_jobs), 1)) as executor:
-        futures = {
-            executor.submit(
-                _run_export_job,
-                name,
-                spec,
-                tpl_path,
-                data_file,
-                out_dir,
-                screenshots_dir,
-                diagrams_dir,
-            ): name
-            for name, (spec, tpl_path) in active_jobs.items()
+        jobs = {
+            "xlsx": {
+                "template": "test-case.xlsx",
+                "output": "kich-ban-kiem-thu.xlsx",
+                "engine": "xlsx",
+            },
+            "hdsd": {
+                "template": "huong-dan-su-dung.docx",
+                "output": "huong-dan-su-dung.docx",
+                "engine": "docx",
+            },
+            "tkkt": {
+                "template": "thiet-ke-kien-truc.docx",
+                "output": "thiet-ke-kien-truc.docx",
+                "engine": "docx",
+            },
+            "tkcs": {
+                "template": "thiet-ke-co-so.docx",
+                "output": "thiet-ke-co-so.docx",
+                "engine": "docx",
+            },
+            "tkct": {
+                "template": "thiet-ke-chi-tiet.docx",
+                "output": "thiet-ke-chi-tiet.docx",
+                "engine": "docx",
+            },
         }
-        for future in as_completed(futures):
-            results.append(future.result())
 
-    all_ok = all(r["success"] for r in results)
-    elapsed = round(time.monotonic() - t0, 3)
-    log.info("export done: success=%s targets=%d elapsed=%.3fs", all_ok, len(results), elapsed)
-    payload = {"success": all_ok, "targets": results, "elapsed_s": elapsed}
-    if diagram_report is not None:
-        payload["diagrams"] = diagram_report
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+        # Resolve template paths eagerly (fail-fast before spawning threads)
+        active_jobs: dict[str, tuple[dict, Path]] = {}
+        results: list = []
+        for name, spec in jobs.items():
+            if name not in target_set:
+                continue
+            try:
+                tpl_path = template(spec["template"])
+            except FileNotFoundError:
+                results.append({"target": name, "success": False, "error": "Template not found"})
+                continue
+            active_jobs[name] = (spec, tpl_path)
+
+        # Run export jobs in parallel
+        with ThreadPoolExecutor(max_workers=max(len(active_jobs), 1)) as executor:
+            futures = {
+                executor.submit(
+                    _run_export_job,
+                    name,
+                    spec,
+                    tpl_path,
+                    data_file,
+                    out_dir,
+                    screenshots_dir,
+                    diagrams_dir,
+                ): name
+                for name, (spec, tpl_path) in active_jobs.items()
+            }
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        # ── Read rendered outputs into base64 (BEFORE temp dir cleanup) ──
+        outputs: dict[str, str] = {}
+        outputs_meta: dict[str, dict] = {}
+        for r in results:
+            if not r.get("success"):
+                continue
+            output_path_str = r.get("output")
+            if not output_path_str:
+                continue
+            output_path = Path(output_path_str)
+            if not output_path.exists():
+                continue
+            try:
+                blob = output_path.read_bytes()
+                outputs[output_path.name] = base64.b64encode(blob).decode("ascii")
+                outputs_meta[output_path.name] = {
+                    "size_bytes": len(blob),
+                    "target": r["target"],
+                }
+            except Exception as e:
+                log.warning("Failed reading output %s: %s", output_path, e)
+
+        all_ok = all(r["success"] for r in results)
+        elapsed = round(time.monotonic() - t0, 3)
+        total_b64_mb = sum(len(v) for v in outputs.values()) / (1024 * 1024)
+        log.info("export done: success=%s targets=%d outputs=%d total_b64=%.2fMB elapsed=%.3fs",
+                 all_ok, len(results), len(outputs), total_b64_mb, elapsed)
+
+        payload = {
+            "success": all_ok,
+            "outputs": outputs,
+            "outputs_meta": outputs_meta,
+            "targets": results,
+            "elapsed_s": elapsed,
+        }
+        if diagram_report is not None:
+            payload["diagrams"] = diagram_report
+        return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
@@ -465,6 +577,75 @@ def section_schema(doc_type: str) -> str:
     primary_schema = spec["primary_model"].model_json_schema()
     support_schemas = {m.__name__: m.model_json_schema() for m in spec["support_models"]}
 
+    # Diagrams contract — applies to tkkt/tkcs/tkct. The *_diagram fields inside
+    # architecture/tkcs/tkct are FILENAME REFERENCES; raw Mermaid source goes in
+    # the top-level ContentData.diagrams dict keyed by the same name. Engine
+    # auto-renders diagrams.{key} → {key}.png, then docxtpl InlineImage reads
+    # the filename-reference field. Without this info, agents routinely put
+    # Mermaid source directly into the *_diagram field, which crashes docxtpl.
+    diagrams_contract = None
+    if doc_type in ("tkkt", "tkcs", "tkct"):
+        required_keys_map = {
+            "tkkt": [
+                "architecture_diagram", "logical_diagram", "data_diagram",
+                "integration_diagram", "deployment_diagram", "security_diagram",
+            ],
+            "tkcs": ["tkcs_architecture_diagram", "tkcs_data_model_diagram"],
+            "tkct": [
+                "tkct_architecture_overview_diagram", "tkct_db_erd_diagram",
+                "tkct_ui_layout_diagram", "tkct_integration_diagram",
+                "{module_slug}_flow_diagram (per module)",
+            ],
+        }
+        diagrams_contract = {
+            "rule": (
+                "TWO-FIELD PATTERN: *_diagram fields in this block are FILENAME "
+                "REFERENCES ONLY (e.g. 'architecture_diagram.png'). Raw Mermaid "
+                "source goes in top-level ContentData.diagrams[{key}]. Engine "
+                "auto-renders Mermaid → PNG; docxtpl reads the filename."
+            ),
+            "correct_example": {
+                "diagrams": {
+                    "architecture_diagram": "flowchart LR\n  Web --> API\n  API --> DB"
+                },
+                "architecture": {
+                    "architecture_diagram": "architecture_diagram.png"
+                },
+            },
+            "wrong_example": {
+                "architecture": {
+                    "architecture_diagram": "```mermaid\nflowchart LR\n  Web --> API\n```"
+                },
+                "why_wrong": (
+                    "docxtpl tries InlineImage('```mermaid...') → crash/blank. "
+                    "Also: never use ```mermaid fences — raw source only."
+                ),
+            },
+            "required_diagram_keys": required_keys_map[doc_type],
+            "merge_content_note": (
+                "Call merge_content TWICE or merge both blocks in one call: "
+                "partial_json={'diagrams': {...Mermaid source...}, "
+                f"'{ 'architecture' if doc_type=='tkkt' else doc_type }': "
+                "{..., '*_diagram': '*.png'}}. Do NOT manually render PNG — "
+                "export() auto-renders via mmdc CLI."
+            ),
+            "svg_hero_option": (
+                "For 3 hero keys (architecture_diagram, integration_diagram, "
+                "tkct_integration_diagram), diagrams.{key} may be a dict "
+                "{template, data} instead of Mermaid string. Templates: "
+                "'kien-truc-4-lop', 'ndxp-hub-spoke', 'swimlane-workflow'."
+            ),
+        }
+
+    # Minimums contract — quantity + semantic rules enforced by validate().
+    minimums = None
+    try:
+        from etc_docgen.data.quality_checks import MINIMUMS, BANNED_PHRASES
+        minimums = MINIMUMS.get(doc_type)
+        banned_list = BANNED_PHRASES
+    except Exception:
+        banned_list = []
+
     return json.dumps(
         {
             "doc_type": doc_type,
@@ -472,6 +653,14 @@ def section_schema(doc_type: str) -> str:
             "content_data_keys": spec["content_data_keys"],
             "primary_schema": primary_schema,
             "support_schemas": support_schemas,
+            "diagrams_contract": diagrams_contract,
+            "minimums": minimums,
+            "banned_phrases": banned_list,
+            "enforcement_note": (
+                "These rules are checked by validate(). Warnings are advisory "
+                "(non-blocking) but agents SHOULD fix them before export. "
+                "Run validate(path) after merge_content to see violations."
+            ),
         },
         indent=2,
         ensure_ascii=False,
@@ -479,53 +668,48 @@ def section_schema(doc_type: str) -> str:
 
 
 @mcp.tool()
-def merge_content(data_path: str, partial_json: str) -> str:
-    """Merge partial content into an existing content-data.json file.
+def merge_content(
+    current_data: dict,
+    partial: dict,
+    auto_validate: bool = True,
+) -> str:
+    """Deep-merge partial content into current_data. Pure API mode.
 
-    Use this for incremental writing: each doc-writer agent fills its section,
-    then merges into the shared content-data.json. Supports deep merge —
-    nested dicts are merged recursively, lists are replaced (not appended).
+    Returns the new merged_data dict so caller can persist + chain. NO filesystem I/O.
 
-    Workflow:
-      1. Agent calls section_schema(doc_type) to get field definitions
-      2. Agent produces JSON for its section (e.g. {"tkcs": {...}})
-      3. Agent calls merge_content to write it into content-data.json
-      4. Agent calls validate to verify the merged result
+    Deep merge semantics:
+      - nested dicts → merge recursively
+      - lists → replaced (not appended)
+      - scalar values → overwritten by partial
+
+    With auto_validate=True (default), runs quality checks on the merged result and
+    returns warnings/errors inline.
+
+    Workflow (typical orchestrator loop):
+      1. current = {}
+      2. for each block (shared, tkkt, tkcs, tkct, hdsd, xlsx):
+           result = merge_content(current_data=current, partial=block_dict)
+           current = result["merged_data"]
+           if result["validation"]["dod_met"]: continue
+           else: agent fixes warnings, re-merges
+      3. final current passed to export()
 
     Args:
-        data_path: Path to existing content-data.json (created if missing)
-        partial_json: JSON string with partial content to merge.
+        current_data: Current document state. Pass `{}` for first merge.
+        partial: Partial content to merge in (JSON object).
             Example: {"tkcs": {"legal_basis": "...", "necessity": "..."}}
+        auto_validate: If True (default), run quality checks after merge.
+            Set False only for first-pass skeleton drafts.
     """
     t0 = time.monotonic()
-    log.info("merge_content called: path=%s", data_path)
+    log.info("merge_content called: auto_validate=%s", auto_validate)
 
-    # Validate write path
-    try:
-        path = _resolve_data_path(data_path, allow_write=True)
-    except ValueError as exc:
-        log.warning("merge_content path error: %s", exc)
-        return json.dumps({"success": False, "error": str(exc), "error_code": "INVALID_PATH"})
-
-    # Load existing or start with minimal skeleton
-    if path.exists():
-        try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as e:
-            return json.dumps({"success": False, "error": f"Invalid JSON in {data_path}: {e}"})
-    else:
-        existing = {}
-
-    # Parse partial
-    try:
-        partial = json.loads(partial_json) if isinstance(partial_json, str) else partial_json
-    except json.JSONDecodeError as e:
-        return json.dumps({"success": False, "error": f"Invalid partial JSON: {e}"})
-
+    if not isinstance(current_data, dict):
+        return json.dumps({"success": False, "error": "current_data must be a dict (use {} for first merge)"})
     if not isinstance(partial, dict):
-        return json.dumps({"success": False, "error": "partial_json must be a JSON object"})
+        return json.dumps({"success": False, "error": "partial must be a dict"})
 
-    # Deep merge — produces a new dict, never mutates caller inputs.
+    # Deep merge helper — produces new dict, never mutates caller inputs.
     def _deep_merge(base: dict, patch: dict) -> dict:
         out = copy.deepcopy(base)
         for k, v in patch.items():
@@ -535,27 +719,71 @@ def merge_content(data_path: str, partial_json: str) -> str:
                 out[k] = copy.deepcopy(v)
         return out
 
-    merged = _deep_merge(existing, partial)
+    merged = _deep_merge(current_data, partial)
 
-    # Write back
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    # Quick validation pass
-    merged_keys = list(merged.keys())
     partial_keys = list(partial.keys())
+    total_keys = list(merged.keys())
+    elapsed = round(time.monotonic() - t0, 3)
+    log.info("merge_content done: keys=%s elapsed=%.3fs", partial_keys, elapsed)
 
-    log.info("merge_content done: keys=%s elapsed=%.3fs", partial_keys, round(time.monotonic() - t0, 3))
-    return json.dumps(
-        {
-            "success": True,
-            "path": str(path),
-            "merged_keys": partial_keys,
-            "total_keys": merged_keys,
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
+    response: dict = {
+        "success": True,
+        "merged_data": merged,
+        "merged_keys": partial_keys,
+        "total_keys": total_keys,
+        "elapsed_s": elapsed,
+    }
+
+    # ── Auto-validate: run quality checks on merged content ──────────────────
+    if auto_validate:
+        try:
+            from etc_docgen.data.validation import validate_content_data
+
+            vr = validate_content_data(merged)
+
+            # Filter warnings to those blocks touched by this merge (keeps noise low)
+            # If no warnings, show empty list. If warnings exist, show all (cross-block
+            # issues are relevant context too).
+            # Split warnings into blocking vs whitelisted
+            blocking_warnings = [w for w in vr.warnings if not _is_whitelisted(w)]
+            whitelisted_warnings = [w for w in vr.warnings if _is_whitelisted(w)]
+            _dod_met = vr.valid and len(vr.errors) == 0 and len(blocking_warnings) == 0
+
+            if vr.errors:
+                _action = "FIX ERRORS before export."
+            elif blocking_warnings:
+                _action = "Fix blocking warnings then re-merge."
+            elif whitelisted_warnings:
+                _action = (
+                    "DoD met — whitelisted warnings only (no action needed): "
+                    + "; ".join(whitelisted_warnings[:3])
+                    + ("..." if len(whitelisted_warnings) > 3 else "")
+                )
+            else:
+                _action = "DoD met — this block is done."
+
+            response["validation"] = {
+                "valid": vr.valid,
+                "errors": vr.errors,                  # blocking — must fix
+                "warnings": blocking_warnings,         # must fix before export
+                "warnings_whitelisted": whitelisted_warnings,  # informational only
+                "quality_warnings_count": len(blocking_warnings),
+                "stats": {
+                    k: v for k, v in vr.stats.items()
+                    if k not in ("priority_distribution",)  # omit noisy stats
+                },
+                "dod_met": _dod_met,
+                "action_required": _action,
+            }
+            log.info(
+                "merge_content auto_validate: valid=%s errors=%d warnings=%d (blocking=%d whitelisted=%d) dod_met=%s",
+                vr.valid, len(vr.errors), len(vr.warnings),
+                len(blocking_warnings), len(whitelisted_warnings), _dod_met,
+            )
+        except Exception as e:
+            response["validation"] = {"error": f"auto_validate failed: {e}"}
+
+    return json.dumps(response, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
