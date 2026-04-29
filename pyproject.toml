@@ -130,6 +130,10 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: integration tests requiring Docker/network",
+    "tc_critical: critical business test cases that must pass in CI",
+    "tc_data: content-data and schema contract test cases",
+    "tc_api: MCP/API behavior and error contract test cases",
+    "tc_export: export pipeline and artifact generation test cases",
 ]
 
 [tool.coverage.run]

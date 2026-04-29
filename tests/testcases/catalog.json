@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-04-29",
+  "cases": [
+    {
+      "id": "TC-DATA-001",
+      "suite": "data",
+      "marker": ["tc_data", "tc_critical"],
+      "priority": "critical",
+      "description": "Validate minimal content-data sample passes schema validation.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_data_001_minimal_content_data_valid"
+    },
+    {
+      "id": "TC-DATA-002",
+      "suite": "data",
+      "marker": ["tc_data", "tc_critical"],
+      "priority": "critical",
+      "description": "Missing root project block must fail schema validation.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_data_002_missing_project_block_fails"
+    },
+    {
+      "id": "TC-API-001",
+      "suite": "api",
+      "marker": ["tc_api", "tc_critical"],
+      "priority": "critical",
+      "description": "MCP validate rejects non-dict payload.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_api_001_validate_rejects_non_dict_payload"
+    },
+    {
+      "id": "TC-EXPORT-001",
+      "suite": "export",
+      "marker": ["tc_export", "tc_critical"],
+      "priority": "critical",
+      "description": "Legacy export mode returns error when content-data path does not exist.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_export_001_missing_content_data_file_returns_error"
+    },
+    {
+      "id": "TC-EXPORT-002",
+      "suite": "export",
+      "marker": ["tc_export"],
+      "priority": "high",
+      "description": "Export rejects invalid screenshot filenames containing path traversal.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_export_002_invalid_screenshot_filename_rejected"
+    },
+    {
+      "id": "TC-API-002",
+      "suite": "api",
+      "marker": ["tc_api"],
+      "priority": "high",
+      "description": "MCP validate returns canonical response keys for valid payload.",
+      "automated_by": "tests/unit/test_tc_catalog_critical.py::test_tc_api_002_validate_response_has_contract_keys"
+    }
+  ]
+}
