@@ -43,10 +43,12 @@ jobs:
         continue-on-error: true
 
       - name: Unit tests
-        run: pytest tests/unit -v --cov=etc_platform --cov-report=term-missing --cov-fail-under=60
+        run: |
+          pytest tests/unit -v --cov=etc_platform --cov-report=term-missing --cov-fail-under=60
 
       - name: Critical test cases (business gate)
-        run: pytest tests/unit/test_tc_catalog_critical.py -v -m "tc_critical" --maxfail=1
+        run: |
+          pytest tests/unit/test_tc_catalog_critical.py -v -m "tc_critical" --maxfail=1
 
       - name: Integration tests
         run: pytest tests/integration -v -m "integration"
@@ -79,6 +81,6 @@ jobs:
       - name: Smoke test — export from sample data
         run: |
           etc-platform validate examples/minimal/content-data.json
-          etc-platform export --config examples/minimal/etc-platform.yaml \
+          etc-platform export --config examples/minimal/etc-docgen.yaml \
             --data examples/minimal/content-data.json \
-            --only xlsx tkkt
+            --only xlsx --only tkkt
