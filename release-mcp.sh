@@ -74,22 +74,19 @@ if [ "$YES" != 1 ]; then
   [[ "$yn" =~ ^[Yy] ]] || { echo "Aborted."; exit 0; }
 fi
 
-# ─── build ─────────────────────────────────────────────────────────────
-info "Building $IMAGE_VER"
-docker build -t "$IMAGE_VER" -t "$IMAGE_LATEST" "$BUILD_CTX"
-ok "Built"
-
-# ─── push ──────────────────────────────────────────────────────────────
-info "Pushing $IMAGE_VER"
-if ! docker push "$IMAGE_VER"; then
-  err "Push failed — Did you 'docker login'? (token: app.docker.com/settings/personal-access-tokens)"
+# ─── build + push (multi-arch via buildx) ─────────────────────────────
+info "Building + pushing multi-arch ($IMAGE_VER + :latest, linux/amd64 + linux/arm64)"
+if ! docker buildx build \
+    --platform linux/amd64,linux/arm64 \
+    -t "$IMAGE_VER" \
+    -t "$IMAGE_LATEST" \
+    --push \
+    "$BUILD_CTX"; then
+  err "buildx push failed - Did you 'docker login'? (token: app.docker.com/settings/personal-access-tokens)"
+  err "Or buildx not enabled? Run: docker buildx create --use"
   exit 1
 fi
-ok "Pushed $VERSION"
-
-info "Pushing $IMAGE_LATEST"
-docker push "$IMAGE_LATEST"
-ok "Pushed :latest"
+ok "Pushed multi-arch manifest: $IMAGE_VER + :latest"
 
 # ─── bump team-ai-config (optional) ────────────────────────────────────
 if [ "$BUMP_TEAM" = 1 ]; then

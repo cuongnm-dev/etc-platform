@@ -62,24 +62,20 @@ if (-not $Yes) {
 }
 
 # ─── build ─────────────────────────────────────────────────────────────
-Write-Info "Building $ImageVer"
-docker build -t $ImageVer -t $ImageLatest $BuildCtx
-if ($LASTEXITCODE -ne 0) { Write-Err 'Build failed'; exit 1 }
-Write-Ok 'Built'
-
-# ─── push ──────────────────────────────────────────────────────────────
-Write-Info "Pushing $ImageVer"
-docker push $ImageVer
+Write-Info "Building + pushing multi-arch ($ImageVer + :latest, linux/amd64 + linux/arm64)"
+# buildx build + push in one shot — multi-arch manifest list (Mac M1/M2 + Intel Mac + Linux x86)
+docker buildx build `
+  --platform linux/amd64,linux/arm64 `
+  -t $ImageVer `
+  -t $ImageLatest `
+  --push `
+  $BuildCtx
 if ($LASTEXITCODE -ne 0) {
-  Write-Err 'Push failed — Did you `docker login`? (token: app.docker.com/settings/personal-access-tokens)'
+  Write-Err 'buildx push failed - Did you `docker login`? (token: app.docker.com/settings/personal-access-tokens)'
+  Write-Err 'Or buildx not enabled? Run: docker buildx create --use'
   exit 1
 }
-Write-Ok "Pushed $Version"
-
-Write-Info "Pushing $ImageLatest"
-docker push $ImageLatest
-if ($LASTEXITCODE -ne 0) { Write-Err 'Push :latest failed'; exit 1 }
-Write-Ok 'Pushed :latest'
+Write-Ok "Pushed multi-arch manifest: $ImageVer + :latest"
 
 # ─── bump team-ai-config (optional) ────────────────────────────────────
 if ($BumpTeam) {
