@@ -4,9 +4,12 @@ Phase 1: minimal-risk centralization. Returns raw template content unchanged.
 The calling skill remains responsible for interpretation. Phase 2+ may evolve
 to Jinja rendering, structured outputs, etc.
 
-Templates live under ``$ETC_PLATFORM_DATA_DIR/templates/{namespace}/{template_id}.md``.
+Templates are baked into the image at
+``<package>/assets/registry/templates/{namespace}/{template_id}.md``.
 ``namespace`` groups related templates (e.g. ``new-workspace``,
 ``new-document-workspace``); ``template_id`` is the basename without extension.
+
+Override location for dev/test via env var ``ETC_PLATFORM_TEMPLATES_DIR``.
 """
 from __future__ import annotations
 
@@ -15,9 +18,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-# Resolved on import; tests can monkeypatch via env var.
-_DATA_DIR: Path = Path(os.environ.get("ETC_PLATFORM_DATA_DIR", "/data"))
-_TEMPLATES_ROOT: Path = _DATA_DIR / "registry" / "templates"
+# Templates ship inside the package (assets/registry/templates/).
+# Path resolution: this file lives at .../etc_platform/registry/templates_registry.py
+#   parent.parent → .../etc_platform/  (package root)
+_PACKAGE_DIR: Path = Path(__file__).resolve().parent.parent
+_DEFAULT_TEMPLATES_ROOT: Path = _PACKAGE_DIR / "assets" / "registry" / "templates"
+_TEMPLATES_ROOT: Path = Path(
+    os.environ.get("ETC_PLATFORM_TEMPLATES_DIR", str(_DEFAULT_TEMPLATES_ROOT))
+)
 
 
 def _resolve_template_path(namespace: str, template_id: str) -> Path:
@@ -72,7 +80,7 @@ def template_load_impl(namespace: str, template_id: str) -> dict[str, Any]:
         "content": content,
         "size_bytes": len(content.encode("utf-8")),
         "sha256": digest,
-        "path": str(path.relative_to(_DATA_DIR)) if path.is_relative_to(_DATA_DIR) else str(path),
+        "path": str(path.relative_to(_TEMPLATES_ROOT)) if path.is_relative_to(_TEMPLATES_ROOT) else str(path),
     }
 
 
