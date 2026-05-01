@@ -29,7 +29,27 @@ _DATA_DIR: Path = Path(
     or os.environ.get("ETC_DOCGEN_DATA_DIR")  # back-compat
     or "/data"
 )
-_OUTLINES_ROOT: Path = _DATA_DIR / "outlines"
+# Two roots: user-mounted (/data/outlines, allows custom override) +
+# image-baked (/app/data/outlines, ships with container). User mount takes
+# precedence when populated; otherwise fall back to baked outlines so members
+# don't need to manually sync the outlines/ directory into their volume.
+_USER_OUTLINES_ROOT: Path = _DATA_DIR / "outlines"
+_BAKED_OUTLINES_ROOT: Path = Path("/app/data/outlines")
+
+
+def _resolve_outlines_root() -> Path:
+    """Pick user mount when it has at least one doc_type subdir, else baked."""
+    if _USER_OUTLINES_ROOT.is_dir():
+        try:
+            for child in _USER_OUTLINES_ROOT.iterdir():
+                if child.is_dir():
+                    return _USER_OUTLINES_ROOT
+        except OSError:
+            pass
+    return _BAKED_OUTLINES_ROOT
+
+
+_OUTLINES_ROOT: Path = _resolve_outlines_root()
 
 
 def _safe_join(doc_type: str, leaf: str) -> Path:

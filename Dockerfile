@@ -59,6 +59,12 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
 
+# Bake immutable outlines (G1: NĐ 30/2020 outline templates) into image at
+# /app/data/outlines so they ship with the container regardless of volume mounts.
+# outlines.py falls back to this path when /data/outlines is empty (default
+# member setup with `./data:/data` volume containing only _jobs/).
+COPY data/ /app/data/
+
 # Install etc-platform with serve (uvicorn) extra
 RUN pip install --no-cache-dir ".[serve]"
 
