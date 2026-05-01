@@ -42,6 +42,14 @@
 {%- set ZONES_TOP   = MARGIN + TITLE_H + SUBTITLE_H + 8 + ACTOR_H + 14 -%}
 <svg xmlns="http://www.w3.org/2000/svg" width="{{ W }}" height="{{ H }}" viewBox="0 0 {{ W }} {{ H }}"
      font-family="Times New Roman, serif">
+  {%- macro multiline(label, x, y, cls, line_h=14) -%}
+    {%- set lines = (label or '').replace('\\n', '\n').split('\n') -%}
+    {%- set total = lines|length -%}
+    {%- set y_start = y - ((total - 1) * line_h) // 2 -%}
+    {%- for ln in lines -%}
+      {%- autoescape false %}<tspan x="{{ x }}" y="{{ y_start + loop.index0 * line_h }}" class="{{ cls }}">{%- endautoescape -%}{{ ln }}{%- autoescape false %}</tspan>{%- endautoescape %}
+    {%- endfor -%}
+  {%- endmacro -%}
   <defs>
     <style>
       .title       { font-size: 22px; font-weight: bold; fill: #1F3864; }
@@ -80,7 +88,7 @@
       {%- set ay2 = ay + 14 %}
       <rect x="{{ ax }}" y="{{ ay2 }}" width="{{ actor_w }}" height="{{ ACTOR_H - 28 }}"
             fill="{{ a.get('color', '#DEEBF7') }}" stroke="#2E75B6" stroke-width="1" rx="4" ry="4"/>
-      <text class="actor-label" x="{{ ax + actor_w // 2 }}" y="{{ ay2 + (ACTOR_H - 28) // 2 + 4 }}" text-anchor="middle">{{ a.label }}</text>
+      <text text-anchor="middle">{{ multiline(a.label, ax + actor_w // 2, ay2 + (ACTOR_H - 28) // 2 + 4, "actor-label") | safe }}</text>
     {%- endfor %}
   {%- endif %}
 

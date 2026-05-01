@@ -51,6 +51,14 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" width="{{ W }}" height="{{ H }}" viewBox="0 0 {{ W }} {{ H }}"
      font-family="Times New Roman, serif">
+  {%- macro multiline(label, x, y, cls, line_h=13) -%}
+    {%- set lines = (label or '').replace('\\n', '\n').split('\n') -%}
+    {%- set total = lines|length -%}
+    {%- set y_start = y - ((total - 1) * line_h) // 2 -%}
+    {%- for ln in lines -%}
+      {%- autoescape false %}<tspan x="{{ x }}" y="{{ y_start + loop.index0 * line_h }}" class="{{ cls }}">{%- endautoescape -%}{{ ln }}{%- autoescape false %}</tspan>{%- endautoescape %}
+    {%- endfor -%}
+  {%- endmacro -%}
   <defs>
     <style>
       .title       { font-size: 22px; font-weight: bold; fill: #1F3864; }
@@ -91,7 +99,7 @@
       {%- set ay = y_cursor + 22 %}
     <rect x="{{ ax }}" y="{{ ay }}" width="{{ actor_w }}" height="{{ ACTOR_H - 32 }}"
           fill="{{ a.get('color', '#DEEBF7') }}" stroke="#2E75B6" stroke-width="1" rx="4" ry="4"/>
-    <text class="actor-label" x="{{ ax + actor_w // 2 }}" y="{{ ay + (ACTOR_H - 32) // 2 + 4 }}" text-anchor="middle">{{ a.label }}</text>
+    <text text-anchor="middle">{{ multiline(a.label, ax + actor_w // 2, ay + (ACTOR_H - 32) // 2 + 4, "actor-label") | safe }}</text>
     {%- endfor %}
     {%- set y_cursor = y_cursor + ACTOR_H + GAP %}
   {%- endif %}
@@ -111,7 +119,7 @@
         <rect x="{{ _ns.x }}" y="{{ y_cursor }}" width="{{ band_w }}" height="{{ BANDS_H }}"
               fill="{{ b.get('color', '#DEEBF7') }}" stroke="{{ b.get('border', '#2E75B6') }}"
               stroke-width="1.5" rx="6" ry="6"/>
-        <text class="band-name" x="{{ _ns.x + band_w // 2 }}" y="{{ y_cursor + 20 }}" text-anchor="middle">{{ b.name }}</text>
+        <text text-anchor="middle">{{ multiline(b.name, _ns.x + band_w // 2, y_cursor + 20, "band-name") | safe }}</text>
 
         {%- set mods = b.get('modules', []) -%}
         {%- set m_count = mods | length -%}
@@ -129,7 +137,7 @@
         <rect x="{{ inner_x }}" y="{{ my }}" width="{{ inner_w }}" height="{{ m_h }}"
               fill="white" stroke="{{ b.get('border', '#2E75B6') }}" stroke-width="1" rx="3" ry="3"/>
         <text class="module-no" x="{{ inner_x + 8 }}" y="{{ my + m_h // 2 + 4 }}">{{ m.no }}.</text>
-        <text class="module" x="{{ inner_x + 28 }}" y="{{ my + m_h // 2 + 4 }}">{{ m.name }}</text>
+        <text>{{ multiline(m.name, inner_x + 28, my + m_h // 2 + 4, "module") | safe }}</text>
           {%- endfor -%}
         {%- endif -%}
       </g>
