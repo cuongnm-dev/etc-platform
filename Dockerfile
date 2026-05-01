@@ -24,6 +24,7 @@ WORKDIR /app
 
 # Install Node.js + Mermaid CLI (for rendering Mermaid diagrams to PNG)
 # Plus Chromium deps since mermaid-cli uses puppeteer/headless browser
+# Plus PlantUML + Graphviz + JRE for cleaner architecture/network/sequence diagrams
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates gnupg \
       # Chromium runtime deps for headless rendering
@@ -32,14 +33,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libx11-6 \
       libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
       libxrandr2 libxrender1 libxss1 libxtst6 xdg-utils \
+      # PlantUML stack: jre headless + graphviz (dot) for layout engine
+      default-jre-headless graphviz \
+      # Vietnamese fonts so PlantUML/Mermaid render diacritics correctly
+      fonts-dejavu fonts-noto-core fonts-noto-cjk \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g @mermaid-js/mermaid-cli \
+    # Download PlantUML jar (pinned version) — placed at /opt/plantuml/plantuml.jar
+    && mkdir -p /opt/plantuml \
+    && curl -fsSL -o /opt/plantuml/plantuml.jar \
+        https://github.com/plantuml/plantuml/releases/download/v1.2024.7/plantuml-1.2024.7.jar \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Mermaid CLI (puppeteer) config — use system chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    PLANTUML_JAR=/opt/plantuml/plantuml.jar \
+    PLANTUML_LIMIT_SIZE=16384
 
 # Install build deps
 RUN pip install --no-cache-dir --upgrade pip

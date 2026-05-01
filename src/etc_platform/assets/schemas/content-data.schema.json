@@ -162,6 +162,18 @@
           "title": "Scope Description",
           "type": "string"
         },
+        "business_overview": {
+          "default": "",
+          "description": "Tổng quan nghiệp vụ — Business view per Khung KT CPĐT 4.0",
+          "title": "Business Overview",
+          "type": "string"
+        },
+        "design_principles": {
+          "default": "",
+          "description": "Nguyên tắc thiết kế kiến trúc (scalability, security-by-design, modularity)",
+          "title": "Design Principles",
+          "type": "string"
+        },
         "tech_stack": {
           "items": {
             "$ref": "#/$defs/TechStackItem"
@@ -257,6 +269,42 @@
           },
           "title": "Nfr",
           "type": "array"
+        },
+        "architecture_diagram": {
+          "default": "",
+          "description": "FILENAME ref (e.g. 'architecture_diagram.png'). Mermaid source → diagrams.architecture_diagram. NEVER put raw Mermaid here.",
+          "title": "Architecture Diagram",
+          "type": "string"
+        },
+        "logical_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.logical_diagram.",
+          "title": "Logical Diagram",
+          "type": "string"
+        },
+        "data_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.data_diagram.",
+          "title": "Data Diagram",
+          "type": "string"
+        },
+        "deployment_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.deployment_diagram.",
+          "title": "Deployment Diagram",
+          "type": "string"
+        },
+        "integration_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.integration_diagram.",
+          "title": "Integration Diagram",
+          "type": "string"
+        },
+        "security_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.security_diagram.",
+          "title": "Security Diagram",
+          "type": "string"
         }
       },
       "title": "Architecture",
@@ -397,16 +445,45 @@
       "type": "object"
     },
     "Dialog": {
+      "description": "A popup dialog/modal that appears during feature use.",
       "properties": {
         "title": {
+          "description": "Dialog title as shown in UI header",
           "title": "Title",
           "type": "string"
         },
-        "components": {
+        "type": {
+          "default": "confirm",
+          "description": "Dialog type: 'confirm' (yes/no prompt), 'form' (modal with inputs), 'alert' (info/warning/error message), 'info' (read-only display)",
+          "title": "Type",
+          "type": "string"
+        },
+        "trigger": {
+          "default": "",
+          "description": "Which step/action triggers this dialog, e.g. 'Click nút Xóa', 'Click Lưu khi có lỗi'",
+          "title": "Trigger",
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "description": "Dialog body text shown to user",
+          "title": "Message",
+          "type": "string"
+        },
+        "buttons": {
+          "description": "Action buttons in the dialog footer",
           "items": {
-            "$ref": "#/$defs/DialogComponent"
+            "$ref": "#/$defs/DialogButton"
           },
-          "title": "Components",
+          "title": "Buttons",
+          "type": "array"
+        },
+        "fields": {
+          "description": "Form fields inside dialog (for type='form' only)",
+          "items": {
+            "$ref": "#/$defs/DialogField"
+          },
+          "title": "Fields",
           "type": "array"
         }
       },
@@ -416,22 +493,55 @@
       "title": "Dialog",
       "type": "object"
     },
-    "DialogComponent": {
+    "DialogButton": {
       "properties": {
-        "name": {
-          "title": "Name",
+        "label": {
+          "description": "Button label as shown in UI, e.g. 'Xác nhận', 'Hủy', 'Đóng'",
+          "title": "Label",
           "type": "string"
         },
-        "description": {
-          "default": "",
-          "title": "Description",
+        "action": {
+          "description": "What happens when clicked, e.g. 'Lưu và đóng dialog', 'Hủy thao tác, đóng dialog'",
+          "title": "Action",
           "type": "string"
         }
       },
       "required": [
-        "name"
+        "label",
+        "action"
       ],
-      "title": "DialogComponent",
+      "title": "DialogButton",
+      "type": "object"
+    },
+    "DialogField": {
+      "description": "A form field inside a dialog (only for type='form').",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "type": {
+          "description": "Input type: Text, Dropdown, Checkbox, Textarea, DatePicker",
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "rules": {
+          "default": "",
+          "description": "Validation rules, e.g. '@Length(1,200)', 'Bắt buộc'",
+          "title": "Rules",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "type"
+      ],
+      "title": "DialogField",
       "type": "object"
     },
     "ErrorCase": {
@@ -449,6 +559,18 @@
         "message": {
           "default": "",
           "title": "Message",
+          "type": "string"
+        },
+        "expected_http_code": {
+          "default": "",
+          "description": "Expected HTTP status code for API errors, e.g. '400', '401', '422', '500'",
+          "title": "Expected Http Code",
+          "type": "string"
+        },
+        "expected_ui_state": {
+          "default": "",
+          "description": "Expected UI state after error, e.g. 'toast đỏ xuất hiện', 'trường highlight đỏ', 'dialog đóng lại'",
+          "title": "Expected Ui State",
           "type": "string"
         }
       },
@@ -659,6 +781,12 @@
           "title": "Flow Description",
           "type": "string"
         },
+        "flow_diagram": {
+          "default": "",
+          "description": "FILENAME ref (e.g. '<module>_flow_diagram.png'). Mermaid source → diagrams.{module}_flow_diagram. NEVER put raw Mermaid here.",
+          "title": "Flow Diagram",
+          "type": "string"
+        },
         "business_rules": {
           "default": "",
           "description": "Quy tắc nghiệp vụ",
@@ -689,6 +817,102 @@
       "title": "ModuleDesign",
       "type": "object"
     },
+    "NcktData": {
+      "description": "NCKT (Báo cáo Nghiên cứu khả thi) data — consumed by nghien-cuu-kha-thi.docx template.\n\nOutline: NĐ 45/2026/NĐ-CP Điều 12 — kế thừa khung NĐ 73/2019 Điều 22.\nReference: data/outlines/nghien-cuu-kha-thi/nd45-2026.md (19 chapters + Phụ lục).\n\nContent is stored as a flat dict keyed by section path (e.g. \"1.1\", \"2.2.1\", \"pl.1\").\nThe DOCX template iterates these keys via `{{ nckt.sections['1.1'] }}`.\n\nSection keys (canonical, IMMUTABLE — order = outline order):\n  1.1  Thông tin chung về dự án\n  1.2  Căn cứ pháp lý\n  1.3.1..1.3.7  Yêu cầu ATTT của dự án (7 mục)\n  2.1  Hiện trạng tổ chức nghiệp vụ\n  2.2.1..2.2.2  Hiện trạng ứng dụng CNTT\n  2.3.1..2.3.4  Hạ tầng và đánh giá\n  2.4  Sự cần thiết đầu tư\n  3.1..3.2  Phù hợp quy hoạch\n  4.1.1..4.1.2  Mục tiêu (TQ + cụ thể)\n  4.2..4.4  Quy mô / Thời gian / Hình thức đầu tư\n  5.1..5.2  Điều kiện + địa điểm\n  6.1.1..6.1.4  Tiêu chuẩn áp dụng\n  6.2.1..6.2.4  Yêu cầu chung kỹ thuật\n  6.3  Tiêu chí lựa chọn\n  6.4.1..6.4.7  Phương án CN/KT/TB (mạng, FW, lưu trữ, máy chủ, ảo hoá, SIEM, NMS)\n  6.5.1..6.5.5  Thiết kế phần mềm nội bộ\n  6.6  Phần mềm thương mại\n  6.7  Cơ chế phục hồi\n  7.1..7.2  Mô hình tổng thể + nghiệp vụ\n  7.3.1  Mô hình logic\n  7.4.1..7.4.3  Mô hình vật lý\n  8.1.1..8.1.7  Định cỡ\n  8.2..8.3  TKCS phần cứng + phần mềm nội bộ\n  8.4.1..8.4.2  Hỗ trợ vận hành\n  8.5.1..8.5.4  Đào tạo\n  8.6.1..8.6.2  Khối lượng lắp đặt\n  9.1..9.2  ATTT cấp độ\n  10.1.1..10.1.3  PP quản lý DA\n  10.2.1..10.2.5  Khai thác vận hành\n  11.1, 11.2.1..11.2.5, 11.3  Vật tư + PCCC + trách nhiệm\n  12  Tác động & BVMT\n  13  Tiến độ thực hiện\n  14.1..14.3  Tổng mức đầu tư + nguồn vốn\n  15.1.1..15.1.4, 15.2.1..15.2.3  Bảo hành + chi phí vận hành\n  16.1, 16.2.1..16.2.2, 16.3.1..16.3.6  Tổ chức QLDA + trách nhiệm\n  17.1..17.2  Hiệu quả KT-XH + ANQP\n  18.1..18.2  Rủi ro + yếu tố thành công\n  19  Kết luận và kiến nghị\n  pl.1..pl.3  Phụ lục: mặt bằng TTDL / sơ đồ mạng / sơ đồ liên thông",
+      "properties": {
+        "sections": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Section path → markdown/prose content. Keys follow outline numbering (e.g. '1.1', '2.2.1', '6.4.3', 'pl.1'). See class docstring for canonical list.",
+          "title": "Sections",
+          "type": "object"
+        },
+        "overall_architecture_diagram": {
+          "default": "",
+          "description": "FILENAME ref §7.1. Mermaid → diagrams.nckt_overall_architecture_diagram.",
+          "title": "Overall Architecture Diagram",
+          "type": "string"
+        },
+        "business_architecture_diagram": {
+          "default": "",
+          "description": "FILENAME ref §7.2. Mermaid → diagrams.nckt_business_architecture_diagram.",
+          "title": "Business Architecture Diagram",
+          "type": "string"
+        },
+        "logical_infra_diagram": {
+          "default": "",
+          "description": "FILENAME ref §7.3. Mermaid → diagrams.nckt_logical_infra_diagram.",
+          "title": "Logical Infra Diagram",
+          "type": "string"
+        },
+        "physical_infra_inner_diagram": {
+          "default": "",
+          "description": "FILENAME ref §7.4.1 (vùng trong). Mermaid → diagrams.nckt_physical_infra_inner_diagram.",
+          "title": "Physical Infra Inner Diagram",
+          "type": "string"
+        },
+        "physical_infra_outer_diagram": {
+          "default": "",
+          "description": "FILENAME ref §7.4.2 (vùng ngoài). Mermaid → diagrams.nckt_physical_infra_outer_diagram.",
+          "title": "Physical Infra Outer Diagram",
+          "type": "string"
+        },
+        "datacenter_layout_diagram": {
+          "default": "",
+          "description": "FILENAME ref PL.1 (mặt bằng TTDL). Mermaid/SVG → diagrams.nckt_datacenter_layout_diagram.",
+          "title": "Datacenter Layout Diagram",
+          "type": "string"
+        },
+        "network_topology_diagram": {
+          "default": "",
+          "description": "FILENAME ref PL.2 (sơ đồ nguyên lý mạng). Mermaid → diagrams.nckt_network_topology_diagram.",
+          "title": "Network Topology Diagram",
+          "type": "string"
+        },
+        "integration_topology_diagram": {
+          "default": "",
+          "description": "FILENAME ref PL.3 (sơ đồ liên thông). Mermaid → diagrams.nckt_integration_topology_diagram.",
+          "title": "Integration Topology Diagram",
+          "type": "string"
+        },
+        "risk_matrix": {
+          "description": "§18.1 risk matrix rows. Each item: {stt, risk, probability, impact, level, mitigation}. If empty, prose in sections['18.1'] is used instead.",
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Risk Matrix",
+          "type": "array"
+        },
+        "investment_summary": {
+          "description": "§14.2 investment summary rows. Each item: {stt, item, unit, qty, unit_price, amount, note}. If empty, prose in sections['14.2'] is used instead.",
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Investment Summary",
+          "type": "array"
+        },
+        "outline_section_map": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "NĐ 45/2026 Đ12 §X → evidence sources (interview Q, KB ref, doc-intel artefacts). Loaded via mcp__etc-platform__outline_load(doc_type='nghien-cuu-kha-thi') by doc-nckt-writer agent.",
+          "title": "Outline Section Map",
+          "type": "object"
+        }
+      },
+      "title": "NcktData",
+      "type": "object"
+    },
     "NfrItem": {
       "properties": {
         "criterion": {
@@ -708,6 +932,73 @@
         }
       },
       "title": "NfrItem",
+      "type": "object"
+    },
+    "NfrSection": {
+      "description": "Yêu cầu phi chức năng (Non-functional requirements).\n\nCấu trúc theo NĐ 45/2026 + QĐ 749 + ATTT cấp 3.",
+      "properties": {
+        "security_attt": {
+          "default": "",
+          "description": "An toàn thông tin (ATTT) cấp độ + biện pháp",
+          "title": "Security Attt",
+          "type": "string"
+        },
+        "fault_tolerance": {
+          "default": "",
+          "description": "Đảm bảo chịu lỗi cú pháp / logic / kiểm soát đầu vào",
+          "title": "Fault Tolerance",
+          "type": "string"
+        },
+        "ipv6_readiness": {
+          "default": "",
+          "description": "Sẵn sàng IPv6 hoặc giải pháp nâng cấp",
+          "title": "Ipv6 Readiness",
+          "type": "string"
+        },
+        "ui_ux_standards": {
+          "default": "",
+          "description": "Mỹ thuật, kỹ thuật giao diện",
+          "title": "Ui Ux Standards",
+          "type": "string"
+        },
+        "performance": {
+          "default": "",
+          "description": "Hiệu năng: response time, concurrent users, throughput",
+          "title": "Performance",
+          "type": "string"
+        },
+        "availability": {
+          "default": "",
+          "description": "Tính sẵn sàng: uptime SLA, RTO, RPO",
+          "title": "Availability",
+          "type": "string"
+        },
+        "scalability": {
+          "default": "",
+          "description": "Khả năng mở rộng (horizontal/vertical scaling)",
+          "title": "Scalability",
+          "type": "string"
+        },
+        "compatibility": {
+          "default": "",
+          "description": "Tương thích trình duyệt, hệ điều hành, thiết bị",
+          "title": "Compatibility",
+          "type": "string"
+        },
+        "accessibility": {
+          "default": "",
+          "description": "Khả năng tiếp cận (a11y) cho người dùng đặc biệt",
+          "title": "Accessibility",
+          "type": "string"
+        },
+        "other": {
+          "default": "",
+          "description": "Các yêu cầu phi chức năng khác",
+          "title": "Other",
+          "type": "string"
+        }
+      },
+      "title": "NfrSection",
       "type": "object"
     },
     "Overview": {
@@ -1258,6 +1549,138 @@
           "description": "Thời gian thực hiện dự kiến",
           "title": "Project Duration",
           "type": "string"
+        },
+        "architecture_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.architecture_diagram or diagrams.tkcs_architecture_diagram.",
+          "title": "Architecture Diagram",
+          "type": "string"
+        },
+        "data_model_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.data_model_diagram or diagrams.tkcs_data_model_diagram.",
+          "title": "Data Model Diagram",
+          "type": "string"
+        },
+        "objectives": {
+          "default": "",
+          "description": "Mục tiêu đầu tư tổng quát + cụ thể, có KPI đo được",
+          "title": "Objectives",
+          "type": "string"
+        },
+        "software_arch_pattern": {
+          "default": "",
+          "description": "Pattern kiến trúc phần mềm (microservices/monolith/SOA)",
+          "title": "Software Arch Pattern",
+          "type": "string"
+        },
+        "dbms_choice": {
+          "default": "",
+          "description": "Lựa chọn DBMS có biện luận (RDBMS vs NoSQL, vendor)",
+          "title": "Dbms Choice",
+          "type": "string"
+        },
+        "os_choice": {
+          "default": "",
+          "description": "Lựa chọn hệ điều hành máy chủ (Linux distro / Windows Server)",
+          "title": "Os Choice",
+          "type": "string"
+        },
+        "standards": {
+          "default": "",
+          "description": "Tiêu chuẩn áp dụng (TCVN, ISO, IEEE, OpenAPI)",
+          "title": "Standards",
+          "type": "string"
+        },
+        "software_design": {
+          "default": "",
+          "description": "Thiết kế phần mềm tổng quan (module, layer, interface)",
+          "title": "Software Design",
+          "type": "string"
+        },
+        "infrastructure_design": {
+          "default": "",
+          "description": "Thiết kế hạ tầng (server, network, storage)",
+          "title": "Infrastructure Design",
+          "type": "string"
+        },
+        "security_design": {
+          "default": "",
+          "description": "Thiết kế bảo mật chi tiết theo TCVN 11930 (quản lý/kỹ thuật/vật lý/con người/vận hành)",
+          "title": "Security Design",
+          "type": "string"
+        },
+        "security_tech": {
+          "default": "",
+          "description": "Giải pháp kỹ thuật ATTT (WAF, SIEM, IDS/IPS, mã hóa)",
+          "title": "Security Tech",
+          "type": "string"
+        },
+        "prep_resources": {
+          "default": "",
+          "description": "Chuẩn bị nhân lực, thiết bị, hạ tầng vận hành",
+          "title": "Prep Resources",
+          "type": "string"
+        },
+        "prep_policies": {
+          "default": "",
+          "description": "Chuẩn bị quy chế, quy trình vận hành",
+          "title": "Prep Policies",
+          "type": "string"
+        },
+        "user_support": {
+          "default": "",
+          "description": "Phương án hỗ trợ, đào tạo người dùng",
+          "title": "User Support",
+          "type": "string"
+        },
+        "milestones": {
+          "default": "",
+          "description": "Các mốc (milestone) chính của dự án",
+          "title": "Milestones",
+          "type": "string"
+        },
+        "schedule": {
+          "default": "",
+          "description": "Bảng tiến độ Gantt / WBS",
+          "title": "Schedule",
+          "type": "string"
+        },
+        "budget_detail": {
+          "default": "",
+          "description": "Chi tiết dự toán theo TT 04/2020/TT-BTTTT",
+          "title": "Budget Detail",
+          "type": "string"
+        },
+        "opex": {
+          "default": "",
+          "description": "Chi phí vận hành chi tiết (O&M) hàng năm",
+          "title": "Opex",
+          "type": "string"
+        },
+        "warranty": {
+          "default": "",
+          "description": "Điều khoản bảo hành, bảo trì",
+          "title": "Warranty",
+          "type": "string"
+        },
+        "pm_form": {
+          "default": "",
+          "description": "Hình thức QLDA (BQL chuyên trách / kiêm nhiệm / thuê tư vấn)",
+          "title": "Pm Form",
+          "type": "string"
+        },
+        "stakeholders": {
+          "default": "",
+          "description": "Các bên liên quan: chủ đầu tư, nhà thầu, tư vấn, thẩm định",
+          "title": "Stakeholders",
+          "type": "string"
+        },
+        "pm_method": {
+          "default": "",
+          "description": "Phương pháp QLDA (waterfall/agile/hybrid)",
+          "title": "Pm Method",
+          "type": "string"
         }
       },
       "title": "TkcsData",
@@ -1342,11 +1765,70 @@
           "title": "Security Design",
           "type": "string"
         },
+        "architecture_overview_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.architecture_overview_diagram or diagrams.tkct_architecture_overview_diagram.",
+          "title": "Architecture Overview Diagram",
+          "type": "string"
+        },
+        "db_erd_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.db_erd_diagram or diagrams.tkct_db_erd_diagram.",
+          "title": "Db Erd Diagram",
+          "type": "string"
+        },
+        "ui_layout_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.ui_layout_diagram or diagrams.tkct_ui_layout_diagram.",
+          "title": "Ui Layout Diagram",
+          "type": "string"
+        },
+        "integration_diagram": {
+          "default": "",
+          "description": "FILENAME ref. Mermaid source → diagrams.integration_diagram or diagrams.tkct_integration_diagram.",
+          "title": "Integration Diagram",
+          "type": "string"
+        },
         "traceability_description": {
           "default": "",
           "description": "Mô tả ma trận truy xuất features ↔ modules ↔ test cases",
           "title": "Traceability Description",
           "type": "string"
+        },
+        "feature_specs": {
+          "description": "Per-feature 8-row spec table — required for government TKCT format",
+          "items": {
+            "$ref": "#/$defs/UseCaseSpec"
+          },
+          "title": "Feature Specs",
+          "type": "array"
+        },
+        "use_case_summary_description": {
+          "default": "",
+          "description": "Mô tả tổng quan use case mapping (intro to use_case_summary table)",
+          "title": "Use Case Summary Description",
+          "type": "string"
+        },
+        "nfr": {
+          "$ref": "#/$defs/NfrSection",
+          "description": "Yêu cầu phi chức năng (NFR) structured"
+        },
+        "db_migration_plan": {
+          "default": "",
+          "description": "Phương án chuyển đổi cơ sở dữ liệu",
+          "title": "Db Migration Plan",
+          "type": "string"
+        },
+        "outline_section_map": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "NĐ 45/2026 §X.Y → list of TkctData field paths. Example: {\"5.1\": [\"security_design.risk_analysis\"], \"5.2\": [\"security_design.auth_design\", \"nfr.security_attt\"]}. Loaded via mcp__etc-platform__outline_load(doc_type='tkct') by writer agent. Template renderer ignores this field; validators may use it for compliance reports.",
+          "title": "Outline Section Map",
+          "type": "object"
         }
       },
       "title": "TkctData",
@@ -1402,6 +1884,85 @@
       ],
       "title": "UIElement",
       "type": "object"
+    },
+    "UseCaseSpec": {
+      "description": "Per-feature 8-row spec table (government TKCT standard).\n\nRenders as 2-col table: header on left, value on right.\nMỗi acceptance_criterion → 1 use case → 1 UseCaseSpec.",
+      "properties": {
+        "code": {
+          "default": "",
+          "description": "Mã use case: UC-{module}-{NNN}",
+          "title": "Code",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "description": "Tên chức năng",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Mô tả chức năng",
+          "title": "Description",
+          "type": "string"
+        },
+        "actors": {
+          "default": "",
+          "description": "Tác nhân (vai trò)",
+          "title": "Actors",
+          "type": "string"
+        },
+        "preconditions": {
+          "default": "",
+          "description": "Điều kiện trước",
+          "title": "Preconditions",
+          "type": "string"
+        },
+        "postconditions": {
+          "default": "",
+          "description": "Điều kiện sau",
+          "title": "Postconditions",
+          "type": "string"
+        },
+        "main_flow": {
+          "default": "",
+          "description": "Luồng chính (numbered steps)",
+          "title": "Main Flow",
+          "type": "string"
+        },
+        "alternative_flow": {
+          "default": "",
+          "description": "Luồng phụ",
+          "title": "Alternative Flow",
+          "type": "string"
+        },
+        "exception_flow": {
+          "default": "",
+          "description": "Ngoại lệ",
+          "title": "Exception Flow",
+          "type": "string"
+        },
+        "feature_id": {
+          "default": "",
+          "description": "FK to Feature.id",
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "bmt_category": {
+          "default": "B",
+          "description": "Phân loại BMT theo QĐ 17/2019: A|B|C|D|E",
+          "title": "Bmt Category",
+          "type": "string"
+        },
+        "complexity": {
+          "default": "Trung bình",
+          "description": "Đơn giản | Trung bình | Phức tạp | Rất phức tạp",
+          "title": "Complexity",
+          "type": "string"
+        }
+      },
+      "title": "UseCaseSpec",
+      "type": "object"
     }
   },
   "description": "Root model for content-data.json — the contract between all pipeline phases.\n\nProducers:\n  - Phase 1 (tdoc-researcher): populates services[], overview\n  - Phase 2 (tdoc-test-runner): populates services[].features[].steps[].screenshot\n  - Phase 3 (tdoc-data-writer): populates test_cases, meta, project\n  - Manual: user edits directly\n\nConsumers:\n  - xlsx engine: reads project, meta, dev_unit, test_cases, test_sheets\n  - docx engine: reads project, meta, dev_unit, overview, services",
@@ -1410,8 +1971,8 @@
       "$ref": "#/$defs/ProjectInfo"
     },
     "dev_unit": {
-      "default": "Công ty CP Hệ thống Công nghệ ETC",
-      "description": "Development company name",
+      "default": "",
+      "description": "Development company name. Left blank by default so downstream renderers can flag it as '[CẦN BỔ SUNG]' instead of silently stamping a hardcoded vendor on third-party projects.",
       "title": "Dev Unit",
       "type": "string"
     },
@@ -1453,6 +2014,16 @@
     "tkct": {
       "$ref": "#/$defs/TkctData",
       "description": "TKCT (detailed design) data"
+    },
+    "nckt": {
+      "$ref": "#/$defs/NcktData",
+      "description": "NCKT (Báo cáo Nghiên cứu khả thi) data — NĐ 45/2026 Đ12"
+    },
+    "diagrams": {
+      "additionalProperties": true,
+      "description": "Mermaid sources (str) or hero SVG dicts keyed by diagram name. Engine auto-renders to {key}.png under out_dir/diagrams/. Architecture/tkcs/tkct fields reference these filenames.",
+      "title": "Diagrams",
+      "type": "object"
     }
   },
   "required": [

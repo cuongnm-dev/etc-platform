@@ -762,6 +762,130 @@ class TkctData(BaseModel):
     )
 
 
+class NcktData(BaseModel):
+    """NCKT (Báo cáo Nghiên cứu khả thi) data — consumed by nghien-cuu-kha-thi.docx template.
+
+    Outline: NĐ 45/2026/NĐ-CP Điều 12 — kế thừa khung NĐ 73/2019 Điều 22.
+    Reference: data/outlines/nghien-cuu-kha-thi/nd45-2026.md (19 chapters + Phụ lục).
+
+    Content is stored as a flat dict keyed by section path (e.g. "1.1", "2.2.1", "pl.1").
+    The DOCX template iterates these keys via `{{ nckt.sections['1.1'] }}`.
+
+    Section keys (canonical, IMMUTABLE — order = outline order):
+      1.1  Thông tin chung về dự án
+      1.2  Căn cứ pháp lý
+      1.3.1..1.3.7  Yêu cầu ATTT của dự án (7 mục)
+      2.1  Hiện trạng tổ chức nghiệp vụ
+      2.2.1..2.2.2  Hiện trạng ứng dụng CNTT
+      2.3.1..2.3.4  Hạ tầng và đánh giá
+      2.4  Sự cần thiết đầu tư
+      3.1..3.2  Phù hợp quy hoạch
+      4.1.1..4.1.2  Mục tiêu (TQ + cụ thể)
+      4.2..4.4  Quy mô / Thời gian / Hình thức đầu tư
+      5.1..5.2  Điều kiện + địa điểm
+      6.1.1..6.1.4  Tiêu chuẩn áp dụng
+      6.2.1..6.2.4  Yêu cầu chung kỹ thuật
+      6.3  Tiêu chí lựa chọn
+      6.4.1..6.4.7  Phương án CN/KT/TB (mạng, FW, lưu trữ, máy chủ, ảo hoá, SIEM, NMS)
+      6.5.1..6.5.5  Thiết kế phần mềm nội bộ
+      6.6  Phần mềm thương mại
+      6.7  Cơ chế phục hồi
+      7.1..7.2  Mô hình tổng thể + nghiệp vụ
+      7.3.1  Mô hình logic
+      7.4.1..7.4.3  Mô hình vật lý
+      8.1.1..8.1.7  Định cỡ
+      8.2..8.3  TKCS phần cứng + phần mềm nội bộ
+      8.4.1..8.4.2  Hỗ trợ vận hành
+      8.5.1..8.5.4  Đào tạo
+      8.6.1..8.6.2  Khối lượng lắp đặt
+      9.1..9.2  ATTT cấp độ
+      10.1.1..10.1.3  PP quản lý DA
+      10.2.1..10.2.5  Khai thác vận hành
+      11.1, 11.2.1..11.2.5, 11.3  Vật tư + PCCC + trách nhiệm
+      12  Tác động & BVMT
+      13  Tiến độ thực hiện
+      14.1..14.3  Tổng mức đầu tư + nguồn vốn
+      15.1.1..15.1.4, 15.2.1..15.2.3  Bảo hành + chi phí vận hành
+      16.1, 16.2.1..16.2.2, 16.3.1..16.3.6  Tổ chức QLDA + trách nhiệm
+      17.1..17.2  Hiệu quả KT-XH + ANQP
+      18.1..18.2  Rủi ro + yếu tố thành công
+      19  Kết luận và kiến nghị
+      pl.1..pl.3  Phụ lục: mặt bằng TTDL / sơ đồ mạng / sơ đồ liên thông
+    """
+
+    sections: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Section path → markdown/prose content. Keys follow outline numbering "
+            "(e.g. '1.1', '2.2.1', '6.4.3', 'pl.1'). See class docstring for canonical list."
+        ),
+    )
+
+    # Diagrams referenced in Chapter 7 + Phụ lục — FILENAME ref to ContentData.diagrams[{key}]
+    overall_architecture_diagram: str = Field(
+        default="",
+        description="FILENAME ref §7.1. Mermaid → diagrams.nckt_overall_architecture_diagram.",
+    )
+    business_architecture_diagram: str = Field(
+        default="",
+        description="FILENAME ref §7.2. Mermaid → diagrams.nckt_business_architecture_diagram.",
+    )
+    logical_infra_diagram: str = Field(
+        default="",
+        description="FILENAME ref §7.3. Mermaid → diagrams.nckt_logical_infra_diagram.",
+    )
+    physical_infra_inner_diagram: str = Field(
+        default="",
+        description="FILENAME ref §7.4.1 (vùng trong). Mermaid → diagrams.nckt_physical_infra_inner_diagram.",
+    )
+    physical_infra_outer_diagram: str = Field(
+        default="",
+        description="FILENAME ref §7.4.2 (vùng ngoài). Mermaid → diagrams.nckt_physical_infra_outer_diagram.",
+    )
+    datacenter_layout_diagram: str = Field(
+        default="",
+        description="FILENAME ref PL.1 (mặt bằng TTDL). Mermaid/SVG → diagrams.nckt_datacenter_layout_diagram.",
+    )
+    network_topology_diagram: str = Field(
+        default="",
+        description="FILENAME ref PL.2 (sơ đồ nguyên lý mạng). Mermaid → diagrams.nckt_network_topology_diagram.",
+    )
+    integration_topology_diagram: str = Field(
+        default="",
+        description="FILENAME ref PL.3 (sơ đồ liên thông). Mermaid → diagrams.nckt_integration_topology_diagram.",
+    )
+
+    # Risk matrix structured (§18.1) — list of dicts, optional structured form
+    risk_matrix: list[dict[str, str]] = Field(
+        default_factory=list,
+        description=(
+            "§18.1 risk matrix rows. Each item: "
+            "{stt, risk, probability, impact, level, mitigation}. "
+            "If empty, prose in sections['18.1'] is used instead."
+        ),
+    )
+
+    # Cost summary structured (§14.2) — optional, for table rendering
+    investment_summary: list[dict[str, str]] = Field(
+        default_factory=list,
+        description=(
+            "§14.2 investment summary rows. Each item: "
+            "{stt, item, unit, qty, unit_price, amount, note}. "
+            "If empty, prose in sections['14.2'] is used instead."
+        ),
+    )
+
+    # Outline traceability — maps section_id → producer evidence (for compliance audit)
+    outline_section_map: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "NĐ 45/2026 Đ12 §X → evidence sources (interview Q, KB ref, doc-intel artefacts). "
+            "Loaded via mcp__etc-platform__outline_load(doc_type='nghien-cuu-kha-thi') "
+            "by doc-nckt-writer agent."
+        ),
+    )
+
+
 class TestSheetConfig(BaseModel):
     """Optional labels for test result sheet."""
 
@@ -847,6 +971,10 @@ class ContentData(BaseModel):
     tkct: TkctData = Field(
         default_factory=TkctData,
         description="TKCT (detailed design) data",
+    )
+    nckt: NcktData = Field(
+        default_factory=NcktData,
+        description="NCKT (Báo cáo Nghiên cứu khả thi) data — NĐ 45/2026 Đ12",
     )
     diagrams: dict[str, Any] = Field(
         default_factory=dict,

@@ -186,6 +186,21 @@ def build_diagram_context(
         img = _resolve_diagram(tpl, module.get("flow_diagram", ""), diagrams_dir, report)
         module["flow_diagram_image"] = img
 
+    # NCKT diagrams (Báo cáo Nghiên cứu khả thi — NĐ 45/2026 Đ12)
+    nckt = data.get("nckt", {})
+    for field in (
+        "overall_architecture_diagram",
+        "business_architecture_diagram",
+        "logical_infra_diagram",
+        "physical_infra_inner_diagram",
+        "physical_infra_outer_diagram",
+        "datacenter_layout_diagram",
+        "network_topology_diagram",
+        "integration_topology_diagram",
+    ):
+        img = _resolve_diagram(tpl, nckt.get(field, ""), diagrams_dir, report)
+        nckt[f"{field}_image"] = img
+
     return data
 
 
@@ -408,6 +423,7 @@ def render(
     data.setdefault("architecture", {})
     data.setdefault("tkcs", {})
     data.setdefault("tkct", {})
+    data.setdefault("nckt", {})
     data.setdefault("services", [])
     data.setdefault("troubleshooting", [])
 

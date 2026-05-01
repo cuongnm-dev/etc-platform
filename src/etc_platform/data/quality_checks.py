@@ -196,6 +196,172 @@ MINIMUMS: dict[str, dict[str, Any]] = {
         "tc_required_fields": ["id", "name", "feature_id"],
         "tc_id_pattern": r"^TC-[A-Z0-9]+-\d{3,}$",
     },
+    # NCKT (Báo cáo Nghiên cứu khả thi) — NĐ 45/2026/NĐ-CP Điều 12.
+    # Outline: nghien-cuu-kha-thi/nd45-2026.md (19 chương + Phụ lục).
+    # Storage: nckt.sections[<key>] dict — keyed by section path "1.1", "2.2.1", ..., "pl.3".
+    "nckt": {
+        # Required section keys (canonical, từ outline). Missing = empty string.
+        "required_sections": [
+            # 1 Tổng quan
+            "1.1", "1.2",
+            "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", "1.3.7",
+            # 2 Sự cần thiết
+            "2.1", "2.2.1", "2.2.2",
+            "2.3.1", "2.3.2", "2.3.3", "2.3.4", "2.4",
+            # 3 Quy hoạch
+            "3.1", "3.2",
+            # 4 Mục tiêu
+            "4.1.1", "4.1.2", "4.2", "4.3", "4.4",
+            # 5 Điều kiện + địa điểm
+            "5.1", "5.2",
+            # 6 Phương án
+            "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+            "6.2.1", "6.2.2", "6.2.3", "6.2.4",
+            "6.3",
+            "6.4.1", "6.4.2", "6.4.3", "6.4.4", "6.4.5", "6.4.6", "6.4.7",
+            "6.5.1", "6.5.2", "6.5.3", "6.5.4", "6.5.5",
+            "6.6", "6.7",
+            # 7 Mô hình
+            "7.1", "7.2", "7.3.1", "7.4.1", "7.4.2", "7.4.3",
+            # 8 TKCS
+            "8.1.1", "8.1.2", "8.1.3", "8.1.4", "8.1.5", "8.1.6", "8.1.7",
+            "8.2", "8.3",
+            "8.4.1", "8.4.2",
+            "8.5.1", "8.5.2", "8.5.3", "8.5.4",
+            "8.6.1", "8.6.2",
+            # 9 ATTT
+            "9.1", "9.2",
+            # 10 Quản lý-khai thác
+            "10.1.1", "10.1.2", "10.1.3",
+            "10.2.1", "10.2.2", "10.2.3", "10.2.4", "10.2.5",
+            # 11 Vật tư + PCCC
+            "11.1",
+            "11.2.1", "11.2.2", "11.2.3", "11.2.4", "11.2.5",
+            "11.3",
+            # 12-13 standalone
+            "12", "13",
+            # 14 Tổng mức đầu tư
+            "14.1", "14.2", "14.3",
+            # 15 Bảo hành + chi phí
+            "15.1.1", "15.1.2", "15.1.3", "15.1.4",
+            "15.2.1", "15.2.2", "15.2.3",
+            # 16 Tổ chức QLDA
+            "16.1",
+            "16.2.1", "16.2.2",
+            "16.3.1", "16.3.2", "16.3.3", "16.3.4", "16.3.5", "16.3.6",
+            # 17 Hiệu quả
+            "17.1", "17.2",
+            # 18 Rủi ro + thành công
+            "18.1", "18.2",
+            # 19 Kết luận
+            "19",
+            # PL Phụ lục
+            "pl.1", "pl.2", "pl.3",
+        ],
+        # Per-section minimum word counts (default = 80; selected sections override).
+        # High-impact sections require more depth; hub sections (12, 13, 19) less.
+        "sections_min_words_default": 80,
+        "sections_min_words_overrides": {
+            # Tổng quan: thông tin chung + căn cứ pháp lý cần đầy đủ
+            "1.1": 200,
+            "1.2": 400,         # ≥ 7 văn bản pháp lý
+            # Sự cần thiết: hiện trạng cần data-rich
+            "2.1": 250,
+            "2.3.1": 300,       # hạ tầng — phải có thông số
+            "2.3.3": 250,
+            "2.3.4": 300,
+            "2.4": 400,         # justification chính
+            # Quy hoạch: phù hợp KT CPĐT
+            "3.1": 250,
+            "3.2": 250,
+            # Mục tiêu
+            "4.1.1": 150,
+            "4.1.2": 250,       # KPI cụ thể
+            # Phương án CN/KT/TB — mỗi section so sánh + lựa chọn
+            "6.4.1": 150,
+            "6.4.2": 200,
+            "6.4.3": 200,
+            "6.4.4": 200,
+            "6.4.5": 200,
+            "6.4.6": 150,
+            "6.4.7": 150,
+            "6.5.1": 200,
+            "6.5.2": 200,
+            "6.5.3": 150,
+            "6.5.4": 250,
+            "6.5.5": 200,
+            "6.7": 200,
+            # Mô hình kiến trúc
+            "7.1": 250,
+            "7.2": 200,
+            "7.3.1": 300,
+            "7.4.3": 300,
+            # TKCS — định cỡ phải có numbers
+            "8.1.1": 150,
+            "8.1.3": 300,
+            "8.1.4": 250,
+            "8.1.5": 200,
+            "8.1.6": 250,
+            "8.2": 250,
+            "8.3": 250,
+            "8.5.2": 200,
+            # ATTT
+            "9.1": 400,         # phải nêu cấp độ N + 5 nhóm biện pháp
+            "9.2": 300,
+            # Quản lý
+            "10.2.4": 200,
+            "10.2.5": 150,      # Luật ANM
+            # Tổng mức đầu tư
+            "14.1": 200,
+            "14.2": 250,
+            "14.3": 150,
+            # Tổ chức QLDA
+            "16.3.2": 150,
+            "16.3.5": 150,
+            # Hiệu quả
+            "17.1": 250,
+            "17.2": 200,
+            # Rủi ro
+            "18.1": 300,        # ≥ 5 rủi ro
+            "18.2": 200,
+            # Kết luận
+            "19": 200,
+        },
+        # Section 1.2 phải viện dẫn ≥ 7 văn bản pháp lý (NĐ/TT/Luật/QĐ).
+        "section_1_2_min_legal_refs": 7,
+        # Section 2.4 phải có numbers (specific facts, không chung chung).
+        "section_2_4_min_numbers": 5,
+        # Section 9.1 phải nêu "cấp độ" theo NĐ 85/2016.
+        "section_9_1_must_contain": ["cấp độ"],
+        # Section 14.2 phải có giá trị tiền tệ (tỷ/triệu/đồng).
+        "section_14_2_must_contain_currency": True,
+        # risk_matrix structured ≥ 5 dòng khi §18.1 fired.
+        "risk_matrix_min_rows": 5,
+        # Số lượng [CẦN BỔ SUNG] tối đa toàn block (placeholders_max).
+        "placeholders_max": 25,
+        # Required diagram filename refs (filename) + matching diagrams.* sources.
+        "diagrams_required": [
+            "nckt_overall_architecture_diagram",
+            "nckt_business_architecture_diagram",
+            "nckt_logical_infra_diagram",
+            "nckt_physical_infra_inner_diagram",
+            "nckt_physical_infra_outer_diagram",
+            "nckt_datacenter_layout_diagram",
+            "nckt_network_topology_diagram",
+            "nckt_integration_topology_diagram",
+        ],
+        # Field mapping diagram → diagram_field key on NcktData (no nckt_ prefix in field names)
+        "diagram_field_map": {
+            "nckt_overall_architecture_diagram": "overall_architecture_diagram",
+            "nckt_business_architecture_diagram": "business_architecture_diagram",
+            "nckt_logical_infra_diagram": "logical_infra_diagram",
+            "nckt_physical_infra_inner_diagram": "physical_infra_inner_diagram",
+            "nckt_physical_infra_outer_diagram": "physical_infra_outer_diagram",
+            "nckt_datacenter_layout_diagram": "datacenter_layout_diagram",
+            "nckt_network_topology_diagram": "network_topology_diagram",
+            "nckt_integration_topology_diagram": "integration_topology_diagram",
+        },
+    },
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -244,7 +410,181 @@ DIAGRAM_FIELDS = {
         "architecture_overview_diagram", "db_erd_diagram",
         "ui_layout_diagram", "integration_diagram",
     ],
+    "nckt": [
+        "overall_architecture_diagram",
+        "business_architecture_diagram",
+        "logical_infra_diagram",
+        "physical_infra_inner_diagram",
+        "physical_infra_outer_diagram",
+        "datacenter_layout_diagram",
+        "network_topology_diagram",
+        "integration_topology_diagram",
+    ],
 }
+
+
+def check_diagram_quality(data: dict) -> list[str]:
+    """Static-analyse PlantUML / Mermaid sources for govt-grade quality bar.
+
+    Triggers: any non-empty entry in `data.diagrams` is checked. Mermaid sources
+    pass through with a generic recommendation; PlantUML sources are scanned for
+    the mandatory skinparam preset + title + grouping + anti-patterns documented
+    in ``skills/generate-docs/notepads/diagram-quality-patterns.md``.
+
+    Failure modes detected:
+      - PlantUML missing skinparam preset (defaultFontName / shadowing / linetype)
+      - PlantUML missing title
+      - PlantUML missing direction hint (top to bottom / left to right)
+      - PlantUML > 25 nodes (too dense — split required)
+      - PlantUML uses ``rectangle "..."`` everywhere instead of semantic shapes
+      - PlantUML uses markdown code fences (engine rejects raw fences)
+      - Source lacks @enduml / @endmindmap / @endgantt closing
+      - Mermaid source emitted when prefix is plantuml-style (mismatched)
+    """
+    warnings: list[str] = []
+    diagrams = data.get("diagrams", {}) or {}
+    if not diagrams:
+        return []
+
+    plantuml_starts = (
+        "@startuml", "@startmindmap", "@startgantt", "@startwbs",
+        "@startsalt", "@startjson", "@startyaml",
+    )
+
+    for key, val in diagrams.items():
+        if val is None:
+            continue
+        # Extract raw source string
+        if isinstance(val, dict):
+            if "template" in val:  # SVG hero — skip text checks
+                continue
+            src = str(val.get("source") or "")
+            forced_type = (val.get("type") or "").lower()
+        elif isinstance(val, str):
+            src = val
+            forced_type = ""
+        else:
+            continue
+        s = src.strip()
+        if not s:
+            continue
+
+        low = s.lower()
+        is_plantuml = forced_type == "plantuml" or any(
+            low.startswith(p) for p in plantuml_starts
+        )
+        if not is_plantuml:
+            # Mermaid path — only detect fence error
+            if "```" in s:
+                warnings.append(
+                    f"diagrams.{key}: source contains markdown fence (```). "
+                    f"Engine wants raw source — strip ``` markers."
+                )
+            continue
+
+        # ── PlantUML quality bar ──
+        prefix = f"diagrams.{key} (PlantUML)"
+
+        # Closing tag
+        end_markers = (
+            "@enduml", "@endmindmap", "@endgantt", "@endwbs",
+            "@endsalt", "@endjson", "@endyaml",
+        )
+        if not any(end in low for end in end_markers):
+            warnings.append(f"{prefix}: missing closing @end... directive.")
+
+        # Skinparam preset
+        if "defaultfontname" not in low:
+            warnings.append(
+                f"{prefix}: missing `skinparam defaultFontName \"Times New Roman\"` — "
+                f"required for VN diacritics + NĐ 30/2020 compliance. "
+                f"See diagram-quality-patterns.md §2."
+            )
+        if "shadowing" not in low:
+            warnings.append(
+                f"{prefix}: missing `skinparam shadowing false` — govt-grade "
+                f"diagrams must be flat (no shadows)."
+            )
+        # linetype only enforced for non-sequence diagrams
+        if "@startuml" in low and "sequencediagram" not in low and "participant " not in low:
+            if "linetype ortho" not in low and "linetype polyline" not in low:
+                warnings.append(
+                    f"{prefix}: missing `skinparam linetype ortho` — required "
+                    f"for clean structural diagrams (use polyline only for sequence)."
+                )
+
+        # Title
+        # Match `title ...` not part of skinparam title block
+        title_re = re.compile(r"(?m)^\s*title\s+\S+")
+        if not title_re.search(s):
+            warnings.append(
+                f"{prefix}: missing `title <b>Hình X.Y</b>: ...` — diagram needs caption."
+            )
+
+        # Detect sequence-style diagram (participant / actor "X" -> Y / autonumber)
+        is_sequence = "@startuml" in low and (
+            "sequencediagram" in low
+            or re.search(r"(?im)^\s*(participant|actor|boundary|control|database|queue|collections)\s+\S+\s*$", s) is not None
+            or "autonumber" in low
+            or re.search(r"->\s*\w+\s*:", s) is not None  # `A -> B :` is sequence syntax
+        )
+
+        # Direction hint (only meaningful for @startuml structural diagrams)
+        if "@startuml" in low and not is_sequence:
+            if "top to bottom direction" not in low and "left to right direction" not in low:
+                warnings.append(
+                    f"{prefix}: missing direction hint (`top to bottom direction` "
+                    f"or `left to right direction`). Auto-layout may produce poor result."
+                )
+
+        # Grouping — at least one package/frame/node container
+        # Sequence diagrams are exempt — participants serve as structure.
+        if "@startuml" in low and not is_sequence:
+            has_grouping = any(
+                kw in low for kw in (
+                    "package ", "frame ", "node ", "rectangle ", "cloud ",
+                    "boundary ", "control ",
+                )
+            )
+            if not has_grouping:
+                warnings.append(
+                    f"{prefix}: no grouping container (package/frame/node). "
+                    f"Govt-grade diagrams require visual grouping."
+                )
+
+        # Node count proxy — count entity/component/database/node/rectangle declarations
+        node_decls = len(re.findall(
+            r"(?im)^\s*(component|entity|database|node|rectangle|cloud|actor|usecase|participant|boundary|control)\s+",
+            s,
+        ))
+        node_decls += len(re.findall(r"\[[^\]\n]+\]\s+as\s+\w+", s))  # `[Name] as id`
+        if node_decls > 25:
+            warnings.append(
+                f"{prefix}: ~{node_decls} nodes detected (>25 limit). "
+                f"Split into 2-3 sub-diagrams for readability."
+            )
+
+        # Anti-pattern: rectangle-only (semantic-blind)
+        rect_count = len(re.findall(r"(?im)^\s*rectangle\s+", s))
+        non_rect = len(re.findall(
+            r"(?im)^\s*(component|entity|database|node|cloud|actor|usecase|participant|boundary|control)\s+",
+            s,
+        ))
+        if rect_count >= 5 and non_rect == 0:
+            warnings.append(
+                f"{prefix}: uses {rect_count} `rectangle` declarations and zero "
+                f"semantic shapes (component/database/node/cloud). "
+                f"Use proper shapes per diagram-quality-patterns.md §1 rule 5."
+            )
+
+        # Markdown fence smell
+        if "```plantuml" in low or "```uml" in low:
+            warnings.append(
+                f"{prefix}: source contains ```plantuml fence. Engine wants raw "
+                f"source starting with @startuml — strip ``` markers."
+            )
+
+    return warnings
 
 
 def check_diagram_cross_refs(data: dict) -> list[str]:
@@ -285,7 +625,7 @@ def check_diagram_cross_refs(data: dict) -> list[str]:
             if stem not in diagrams:
                 # Try canonical forms (block prefix)
                 candidates = [stem]
-                if block_name in ("tkcs", "tkct"):
+                if block_name in ("tkcs", "tkct", "nckt"):
                     candidates.append(f"{block_name}_{stem}")
                 if not any(c in diagrams for c in candidates):
                     warnings.append(
@@ -319,7 +659,7 @@ def check_diagram_cross_refs(data: dict) -> list[str]:
             continue
         if key not in referenced:
             # Try checking against canonical names with stripped prefix
-            stripped = key.replace("tkcs_", "").replace("tkct_", "")
+            stripped = key.replace("tkcs_", "").replace("tkct_", "").replace("nckt_", "")
             if stripped not in referenced:
                 warnings.append(
                     f"diagrams.{key}: orphan diagram source — rendered to PNG but no "
@@ -591,6 +931,179 @@ def run_tkct_checks(data: dict) -> list[str]:
     return w
 
 
+def run_nckt_checks(data: dict) -> list[str]:
+    """NCKT (Báo cáo Nghiên cứu khả thi) — NĐ 45/2026 Điều 12 quality gates."""
+    nckt = data.get("nckt", {}) or {}
+    if not nckt:
+        return []
+
+    mins = MINIMUMS["nckt"]
+    sections = nckt.get("sections", {}) or {}
+    if not isinstance(sections, dict):
+        return [
+            "nckt.sections: phải là dict keyed theo section path (ví dụ '1.1', '2.4', 'pl.1'). "
+            "Tham chiếu outline nghien-cuu-kha-thi/nd45-2026.md."
+        ]
+
+    w: list[str] = []
+
+    # ── 1. Required sections present (allow [CẦN BỔ SUNG] but not empty) ──
+    required = mins["required_sections"]
+    missing: list[str] = []
+    for key in required:
+        val = sections.get(key, "")
+        if not isinstance(val, str) or not val.strip():
+            missing.append(key)
+    if missing:
+        # Group by chapter for readable output
+        by_chapter: dict[str, list[str]] = {}
+        for k in missing:
+            ch = k.split(".")[0] if "." in k else k
+            by_chapter.setdefault(ch, []).append(k)
+        chunks = [f"§{ch}: {', '.join(ks)}" for ch, ks in sorted(by_chapter.items())]
+        w.append(
+            f"nckt.sections: thiếu {len(missing)}/{len(required)} section bắt buộc theo "
+            f"NĐ 45/2026 Điều 12. Missing: {' | '.join(chunks)}"
+        )
+
+    # ── 2. Per-section minimum word counts ──
+    default_min = mins["sections_min_words_default"]
+    overrides = mins["sections_min_words_overrides"]
+    for key, val in sections.items():
+        if not isinstance(val, str):
+            continue
+        actual = word_count(val)
+        if actual == 0:
+            continue  # already flagged in step 1
+        min_w = overrides.get(key, default_min)
+        if actual < min_w:
+            w.append(
+                f"nckt.sections['{key}']: {actual} words < {min_w} required."
+            )
+
+    # ── 3. §1.2 — căn cứ pháp lý ≥ N văn bản ──
+    s12 = sections.get("1.2", "")
+    refs_count = count_legal_refs(s12)
+    if isinstance(s12, str) and s12.strip() and refs_count < mins["section_1_2_min_legal_refs"]:
+        w.append(
+            f"nckt.sections['1.2'] (Căn cứ pháp lý): {refs_count} văn bản pháp lý "
+            f"< {mins['section_1_2_min_legal_refs']} required. Phải viện dẫn đầy đủ "
+            f"Luật / Nghị định / Thông tư / Quyết định / Chỉ thị (số hiệu, ngày, cơ quan)."
+        )
+
+    # ── 4. §2.4 — sự cần thiết phải có numbers (data-driven justification) ──
+    s24 = sections.get("2.4", "")
+    if isinstance(s24, str) and word_count(s24) >= 200:
+        nums = number_count(s24)
+        min_nums = mins["section_2_4_min_numbers"]
+        if nums < min_nums:
+            w.append(
+                f"nckt.sections['2.4'] (Sự cần thiết đầu tư): {nums} numbers < "
+                f"{min_nums} required. Phải có số liệu cụ thể (lượng người dùng, "
+                f"khối lượng hồ sơ, chi phí hiện tại, thời gian xử lý...)."
+            )
+
+    # ── 5. §9.1 — ATTT phải nêu cấp độ N theo NĐ 85/2016 ──
+    s91 = sections.get("9.1", "")
+    if isinstance(s91, str) and s91.strip():
+        low = s91.lower()
+        for phrase in mins["section_9_1_must_contain"]:
+            if phrase not in low:
+                w.append(
+                    f"nckt.sections['9.1'] (Yêu cầu ATTT): thiếu xác định 'cấp độ N' "
+                    f"theo NĐ 85/2016 Điều 7 + TT 12/2022. Phải ghi rõ 'Hệ thống "
+                    f"được xác định cấp độ X', kèm 5 nhóm biện pháp TCVN 11930."
+                )
+                break
+        # 5 ATTT groups coverage
+        missing_groups = [
+            g for g, kws in FIVE_ATTT_GROUPS.items()
+            if not any(kw in low for kw in kws)
+        ]
+        if missing_groups:
+            w.append(
+                f"nckt.sections['9.1']: thiếu {len(missing_groups)}/5 nhóm ATTT "
+                f"TCVN 11930 ({', '.join(missing_groups)})."
+            )
+
+    # ── 6. §14.2 — tổng mức đầu tư phải có giá trị tiền tệ ──
+    s142 = sections.get("14.2", "")
+    investment_summary = nckt.get("investment_summary", []) or []
+    if (isinstance(s142, str) and s142.strip()
+            and mins["section_14_2_must_contain_currency"]):
+        currency_re = re.compile(
+            r"(\d[\d.,]*\s*(tỷ|triệu|nghìn|đồng|VND|VNĐ))",
+            re.IGNORECASE,
+        )
+        if not currency_re.search(s142) and not investment_summary:
+            w.append(
+                "nckt.sections['14.2'] (Tổng mức đầu tư): không tìm thấy giá trị "
+                "tiền tệ (tỷ/triệu/đồng) và investment_summary trống. Phải điền "
+                "bảng nckt.investment_summary[] HOẶC nêu số liệu trong prose §14.2."
+            )
+
+    # ── 7. §18.1 — risk_matrix ≥ N rows when section is filled ──
+    s181 = sections.get("18.1", "")
+    rmin = mins["risk_matrix_min_rows"]
+    risk_matrix = nckt.get("risk_matrix", []) or []
+    if isinstance(s181, str) and s181.strip() and len(risk_matrix) < rmin:
+        w.append(
+            f"nckt.risk_matrix: {len(risk_matrix)} rows < {rmin} required. "
+            f"§18.1 phải bao quát ≥ 5 rủi ro (ngân sách, tiến độ, yêu cầu, ATTT, "
+            f"năng lực nhà thầu) với cột {{stt, risk, probability, impact, level, "
+            f"mitigation}}."
+        )
+    # Validate risk_matrix row schema
+    required_risk_fields = {"stt", "risk", "probability", "impact", "level", "mitigation"}
+    for i, r in enumerate(risk_matrix):
+        if not isinstance(r, dict):
+            continue
+        miss = required_risk_fields - set(r.keys())
+        if miss:
+            w.append(
+                f"nckt.risk_matrix[{i}]: thiếu field {sorted(miss)}. "
+                f"Schema: {sorted(required_risk_fields)}."
+            )
+
+    # ── 8. investment_summary row schema ──
+    required_inv_fields = {"stt", "item", "unit", "qty", "unit_price", "amount"}
+    for i, r in enumerate(investment_summary):
+        if not isinstance(r, dict):
+            continue
+        miss = required_inv_fields - set(r.keys())
+        if miss:
+            w.append(
+                f"nckt.investment_summary[{i}]: thiếu field {sorted(miss)}. "
+                f"Schema: {sorted(required_inv_fields)} + optional 'note'."
+            )
+
+    # ── 9. Placeholder cap ──
+    ph = count_placeholders(nckt)
+    if ph > mins["placeholders_max"]:
+        w.append(
+            f"nckt: {ph} placeholders [CẦN BỔ SUNG] > {mins['placeholders_max']} "
+            f"allowed. Bổ sung dữ liệu hoặc giảm scope tài liệu."
+        )
+
+    # ── 10. Specificity density on key data-rich sections ──
+    for key, min_per_500 in (
+        ("2.1", 5),
+        ("2.3.1", 8),
+        ("2.4", 6),
+        ("8.1.3", 8),
+        ("8.1.4", 8),
+        ("14.2", 8),
+        ("17.1", 5),
+    ):
+        text = sections.get(key, "")
+        if isinstance(text, str):
+            w += check_specificity_density(
+                text, f"nckt.sections['{key}']", min_numbers_per_500=min_per_500
+            )
+
+    return w
+
+
 def check_tc_quality(data: dict) -> list[str]:
     """Phase 2 — Test case depth checks.
 
@@ -801,11 +1314,12 @@ def check_diagrams_block(data: dict) -> list[str]:
     warnings: list[str] = []
     diagrams_block = data.get("diagrams", {}) or {}
 
-    # Collect every *_diagram field across architecture/tkcs/tkct blocks.
+    # Collect every *_diagram field across architecture/tkcs/tkct/nckt blocks.
     blocks = {
         "architecture": data.get("architecture", {}) or {},
         "tkcs": data.get("tkcs", {}) or {},
         "tkct": data.get("tkct", {}) or {},
+        "nckt": data.get("nckt", {}) or {},
     }
 
     has_block_with_content = any(blocks[b] for b in blocks)
@@ -818,8 +1332,15 @@ def check_diagrams_block(data: dict) -> list[str]:
 
         # Required diagrams per block.
         required = MINIMUMS.get(block_name, {}).get("diagrams_required", [])
+        # NCKT uses different field names than diagrams.* keys (no nckt_ prefix on field).
+        diagram_field_map = MINIMUMS.get(block_name, {}).get("diagram_field_map", {})
         for key in required:
-            field_value = (block.get(key) or "").strip() if isinstance(block.get(key), str) else ""
+            # Resolve actual block field name (NCKT field names lack the nckt_ prefix).
+            field_name = diagram_field_map.get(key, key)
+            field_value = (
+                (block.get(field_name) or "").strip()
+                if isinstance(block.get(field_name), str) else ""
+            )
             mermaid_src = diagrams_block.get(key)
             mermaid_present = bool(
                 (isinstance(mermaid_src, str) and mermaid_src.strip())
@@ -829,20 +1350,20 @@ def check_diagrams_block(data: dict) -> list[str]:
             if not field_value and not mermaid_present:
                 warnings.append(
                     f"diagrams.{key}: required for {block_name} but missing — "
-                    f"set {block_name}.{key} to a filename (e.g. '{key}.png') AND "
+                    f"set {block_name}.{field_name} to a filename (e.g. '{key}.png') AND "
                     f"populate diagrams.{key} with Mermaid source or SVG hero dict."
                 )
             elif field_value and not mermaid_present:
                 warnings.append(
-                    f"diagrams.{key}: {block_name}.{key} references '{field_value}' "
+                    f"diagrams.{key}: {block_name}.{field_name} references '{field_value}' "
                     f"but diagrams.{key} has no source. Engine cannot render PNG — "
                     f"docx will contain a broken image. Add Mermaid source or "
                     f"clear the filename reference."
                 )
             elif mermaid_present and not field_value:
                 warnings.append(
-                    f"diagrams.{key}: source present but {block_name}.{key} is empty — "
-                    f"docxtpl will not embed the rendered PNG. Set {block_name}.{key} "
+                    f"diagrams.{key}: source present but {block_name}.{field_name} is empty — "
+                    f"docxtpl will not embed the rendered PNG. Set {block_name}.{field_name} "
                     f"to '{key}.png' (engine writes there)."
                 )
 
@@ -959,15 +1480,17 @@ def check_test_case_ids(data: dict) -> list[str]:
 def run_all_quality_checks(data: dict) -> list[str]:
     """Entry point: all Phase 1+2+3 checks."""
     w: list[str] = []
-    # Phase 1 — diagrams integrity (cross-refs + block consistency).
+    # Phase 1 — diagrams integrity (cross-refs + block consistency + quality bar).
     w += check_diagram_cross_refs(data)
     w += check_diagrams_block(data)
+    w += check_diagram_quality(data)
     # Phase 2 — content quality.
     w += check_banned_phrases(data)
     # Phase 2+3 per block.
     w += run_tkkt_checks(data)
     w += run_tkcs_checks(data)
     w += run_tkct_checks(data)
+    w += run_nckt_checks(data)
     # Phase 3 — structural integrity beyond word counts.
     w += check_module_diversity(data)
     w += check_db_table_columns(data)

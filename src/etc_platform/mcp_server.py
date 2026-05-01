@@ -101,7 +101,7 @@ mcp = FastMCP(
         "Phase 3.5 quality gate (orchestrator role, not specialist role).\n\n"
         "## Warning routing\n\n"
         "merge_content returns warnings for ALL blocks. Route to owning specialist:\n"
-        "  architecture.* → tkkt | tkcs.* → tkcs | tkct.* → tkct\n"
+        "  architecture.* → tkkt | tkcs.* → tkcs | tkct.* → tkct | nckt.* → nckt\n"
         "  test_cases.*   → xlsx | [F-NNN].* → xlsx | diagrams.* → shared\n\n"
         "## Definition of Done\n\n"
         "dod_met:true = errors:[] AND blocking warnings:[] (whitelisted warnings do not block).\n"
@@ -323,7 +323,7 @@ def export(
         content_data: Full content-data dict (per `schema()` structure).
         screenshots: Optional `{filename: base64_string}` dict for HDSD images.
             Filenames must be plain (no `/`, `\\`, `..`).
-        targets: Which docs to export. Options: xlsx, hdsd, tkkt, tkcs, tkct.
+        targets: Which docs to export. Options: xlsx, hdsd, tkkt, tkcs, tkct, nckt.
             Default: all 5.
         auto_render_mermaid: If True (default), render `content_data.diagrams`
             into PNG before DOCX fill. Set False to skip.
@@ -385,7 +385,7 @@ def export(
                     {"success": False, "error": f"Invalid screenshot filename: {fn!r}"}
                 )
 
-    target_set = set(targets or ["xlsx", "hdsd", "tkkt", "tkcs", "tkct"])
+    target_set = set(targets or ["xlsx", "hdsd", "tkkt", "tkcs", "tkct", "nckt"])
 
     # Use server-side temp dir for the rendering session
     with tempfile.TemporaryDirectory(prefix="etc-platform-export-") as tmp:
@@ -451,6 +451,11 @@ def export(
             "tkct": {
                 "template": "thiet-ke-chi-tiet.docx",
                 "output": "thiet-ke-chi-tiet.docx",
+                "engine": "docx",
+            },
+            "nckt": {
+                "template": "nghien-cuu-kha-thi.docx",
+                "output": "bao-cao-nghien-cuu-kha-thi.docx",
                 "engine": "docx",
             },
         }
@@ -571,8 +576,9 @@ def section_schema(doc_type: str) -> str:
     Args:
         doc_type: Target document type. Options:
             - tkcs: Thiết kế cơ sở (NĐ 45/2026 Điều 13)
-            - tkct: Thiết kế chi tiết
+            - tkct: Thiết kế chi tiết (NĐ 45/2026 Điều 14)
             - tkkt: Thiết kế kiến trúc
+            - nckt: Báo cáo Nghiên cứu khả thi (NĐ 45/2026 Điều 12)
             - hdsd: Hướng dẫn sử dụng
             - xlsx: Kịch bản kiểm thử (test cases)
     """
@@ -580,6 +586,7 @@ def section_schema(doc_type: str) -> str:
         Architecture,
         Feature,
         Meta,
+        NcktData,
         Overview,
         ProjectInfo,
         Service,
@@ -620,6 +627,23 @@ def section_schema(doc_type: str) -> str:
                 "tech_stack, components, data_entities, apis, deployment, security, nfr."
             ),
         },
+        "nckt": {
+            "primary_model": NcktData,
+            "support_models": [ProjectInfo, Meta, Overview],
+            "content_data_keys": ["project", "meta", "overview", "nckt"],
+            "description": (
+                "NCKT (Báo cáo Nghiên cứu khả thi) — NĐ 45/2026 Điều 12. "
+                "Outline IMMUTABLE: 19 chương + Phụ lục theo "
+                "data/outlines/nghien-cuu-kha-thi/nd45-2026.md. "
+                "Fill nckt.sections[<key>] with formal Vietnamese prose for each "
+                "section path (e.g. '1.1', '2.4', '6.4.3', 'pl.1'). "
+                "Plus structured nckt.risk_matrix[] (≥5 rows) and "
+                "nckt.investment_summary[] for §18.1 + §14.2 tables. "
+                "Plus 8 diagram filename refs cho §7 + Phụ lục. "
+                "Load outline via mcp__etc-platform__outline_load("
+                "doc_type='nghien-cuu-kha-thi') trước khi viết."
+            ),
+        },
         "hdsd": {
             "primary_model": Service,
             "support_models": [ProjectInfo, Meta, Overview, Feature, TroubleshootingItem],
@@ -657,7 +681,7 @@ def section_schema(doc_type: str) -> str:
     # the filename-reference field. Without this info, agents routinely put
     # Mermaid source directly into the *_diagram field, which crashes docxtpl.
     diagrams_contract = None
-    if doc_type in ("tkkt", "tkcs", "tkct"):
+    if doc_type in ("tkkt", "tkcs", "tkct", "nckt"):
         required_keys_map = {
             "tkkt": [
                 "architecture_diagram",
@@ -675,15 +699,58 @@ def section_schema(doc_type: str) -> str:
                 "tkct_integration_diagram",
                 "{module_slug}_flow_diagram (per module)",
             ],
+            "nckt": [
+                "nckt_overall_architecture_diagram (§7.1)",
+                "nckt_business_architecture_diagram (§7.2)",
+                "nckt_logical_infra_diagram (§7.3)",
+                "nckt_physical_infra_inner_diagram (§7.4.1)",
+                "nckt_physical_infra_outer_diagram (§7.4.2)",
+                "nckt_datacenter_layout_diagram (PL.1)",
+                "nckt_network_topology_diagram (PL.2)",
+                "nckt_integration_topology_diagram (PL.3)",
+            ],
         }
         diagrams_contract = {
             "rule": (
                 "TWO-FIELD PATTERN: *_diagram fields in this block are FILENAME "
-                "REFERENCES ONLY (e.g. 'architecture_diagram.png'). Raw Mermaid "
+                "REFERENCES ONLY (e.g. 'architecture_diagram.png'). Raw diagram "
                 "source goes in top-level ContentData.diagrams[{key}]. Engine "
-                "auto-renders Mermaid → PNG; docxtpl reads the filename."
+                "auto-detects PlantUML vs Mermaid by source prefix and renders "
+                "to PNG; docxtpl reads the filename."
             ),
-            "correct_example": {
+            "engine_recommendation": (
+                "PREFER PlantUML for arch / network / deployment / sequence / ERD — "
+                "graphviz dot layout produces dramatically cleaner output than "
+                "Mermaid auto-layout for diagrams with ≥10 nodes or layered structure. "
+                "Mermaid fallback OK for simple flowcharts (<6 nodes), Gantt, pie, "
+                "mindmap, timeline. SVG hero templates remain available for the 3 "
+                "Tier-1 patterns (kien-truc-4-lop / ndxp-hub-spoke / swimlane-workflow)."
+            ),
+            "engine_detection": (
+                "Source string starts with '@startuml' / '@startmindmap' / "
+                "'@startgantt' / '@startwbs' → PlantUML. "
+                "Source starts with 'graph' / 'flowchart' / 'sequenceDiagram' / "
+                "'erDiagram' / 'classDiagram' / 'stateDiagram' → Mermaid. "
+                "Or explicit dict {'type': 'plantuml'|'mermaid'|'svg', 'source': '...'}."
+            ),
+            "correct_example_plantuml": {
+                "diagrams": {
+                    "architecture_diagram": (
+                        "@startuml\n"
+                        "skinparam defaultFontName \"Times New Roman\"\n"
+                        "package \"Lớp ứng dụng\" {\n"
+                        "  [Web] --> [API]\n"
+                        "}\n"
+                        "package \"Lớp dữ liệu\" {\n"
+                        "  database \"PostgreSQL\" as DB\n"
+                        "}\n"
+                        "[API] --> DB\n"
+                        "@enduml"
+                    )
+                },
+                "architecture": {"architecture_diagram": "architecture_diagram.png"},
+            },
+            "correct_example_mermaid": {
                 "diagrams": {"architecture_diagram": "flowchart LR\n  Web --> API\n  API --> DB"},
                 "architecture": {"architecture_diagram": "architecture_diagram.png"},
             },
@@ -693,7 +760,7 @@ def section_schema(doc_type: str) -> str:
                 },
                 "why_wrong": (
                     "docxtpl tries InlineImage('```mermaid...') → crash/blank. "
-                    "Also: never use ```mermaid fences — raw source only."
+                    "Also: never use ```mermaid / ```plantuml fences — raw source only."
                 ),
             },
             "required_diagram_keys": required_keys_map[doc_type],
@@ -702,7 +769,15 @@ def section_schema(doc_type: str) -> str:
                 "partial_json={'diagrams': {...Mermaid source...}, "
                 f"'{'architecture' if doc_type == 'tkkt' else doc_type}': "
                 "{..., '*_diagram': '*.png'}}. Do NOT manually render PNG — "
-                "export() auto-renders via mmdc CLI."
+                "export() auto-renders via mmdc CLI. "
+                + (
+                    "For NCKT, diagram FIELD names lack the 'nckt_' prefix "
+                    "(e.g. nckt.overall_architecture_diagram = "
+                    "'nckt_overall_architecture_diagram.png') because the "
+                    "ContentData.diagrams[] keys carry the prefix to avoid "
+                    "collision with TKKT/TKCS diagram keys."
+                    if doc_type == "nckt" else ""
+                )
             ),
             "svg_hero_option": (
                 "For 3 hero keys (architecture_diagram, integration_diagram, "

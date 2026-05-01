@@ -60,6 +60,7 @@ class DiagramReport:
     out_dir: str = ""
     mmdc_available: bool = False
     playwright_available: bool = False
+    plantuml_available: bool = False
 
     def to_dict(self) -> dict:
         status = "ok"
@@ -77,6 +78,7 @@ class DiagramReport:
             "warnings": self.warnings,
             "mmdc_available": self.mmdc_available,
             "playwright_available": self.playwright_available,
+            "plantuml_available": self.plantuml_available,
         }
 
 
@@ -222,22 +224,74 @@ def _render_mermaid(
     return None
 
 
+# ─────────────────────── PlantUML rendering ───────────────────────
+
+
+def _render_plantuml(
+    key: str,
+    source: str,
+    out_dir: Path,
+    plantuml_spec: dict,
+    report: DiagramReport,
+) -> Path | None:
+    """Render PlantUML source → PNG. Author may omit @startuml/@enduml — wrapper added automatically."""
+    from etc_platform.tools.render_plantuml import render_one as plantuml_render_one
+
+    src = (source or "").replace("\x00", "").strip()
+    if len(src) > 500_000:
+        report.failed.append({"key": key, "type": "plantuml", "error": "Source too large (>500KB)"})
+        return None
+
+    out_png = out_dir / f"{key}.png"
+    ok, err = plantuml_render_one(plantuml_spec, src, out_png)
+    if ok:
+        report.rendered.append({
+            "key": key, "type": "plantuml",
+            "path": str(out_png),
+            "size_kb": out_png.stat().st_size // 1024,
+        })
+        return out_png
+
+    # Save source for debugging
+    (out_dir / f"{key}.puml").write_text(src, encoding="utf-8")
+    report.failed.append({"key": key, "type": "plantuml", "error": (err or "")[:300]})
+    return None
+
+
 # ─────────────────────── Dispatch ───────────────────────
+
+# Heuristic: PlantUML sources start with @startuml / @startmindmap / @startgantt / @startsalt etc.
+_PLANTUML_PREFIXES = (
+    "@startuml", "@startmindmap", "@startgantt", "@startwbs",
+    "@startsalt", "@startjson", "@startyaml", "@startditaa",
+    "@startdot", "@startnetwork",
+)
 
 
 def _detect_type(value) -> str:
-    """Return 'svg' | 'mermaid' | 'unknown'."""
+    """Return 'svg' | 'plantuml' | 'mermaid' | 'unknown'."""
     if isinstance(value, str):
+        head = value.lstrip().lower()
+        # PlantUML strings start with @start...
+        for pfx in _PLANTUML_PREFIXES:
+            if head.startswith(pfx):
+                return "plantuml"
         return "mermaid"  # strings default to Mermaid (back-compat)
     if isinstance(value, dict):
         t = (value.get("type") or "").lower()
         if t == "svg":
             return "svg"
+        if t == "plantuml":
+            return "plantuml"
         if t == "mermaid":
             return "mermaid"
         if "template" in value:  # implicit SVG (has template field)
             return "svg"
-        if "source" in value:    # implicit Mermaid (has source field)
+        if "source" in value:    # implicit — sniff source content
+            src = str(value.get("source") or "").lstrip().lower()
+            for pfx in _PLANTUML_PREFIXES:
+                if src.startswith(pfx):
+                    return "plantuml"
             return "mermaid"
     return "unknown"
 
@@ -257,12 +311,15 @@ def render_all(data: dict, out_dir: Path) -> DiagramReport:
     auto-detects per entry — Mermaid and SVG can coexist in one content-data.json.
     """
     from etc_platform.tools.render_mermaid import check_mmdc
+    from etc_platform.tools.render_plantuml import check_plantuml
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     report = DiagramReport(out_dir=str(out_dir))
     report.mmdc_available = bool(check_mmdc())
     report.playwright_available = _check_playwright()
+    plantuml_spec = check_plantuml()
+    report.plantuml_available = plantuml_spec is not None
 
     diagrams = (data or {}).get("diagrams") or {}
     if not diagrams:
@@ -279,6 +336,12 @@ def render_all(data: dict, out_dir: Path) -> DiagramReport:
             "Playwright not installed — SVG hero entries cannot render to PNG. "
             "Install: pip install playwright && playwright install chromium"
         )
+    if not report.plantuml_available:
+        report.warnings.append(
+            "PlantUML not found — PlantUML entries will be skipped. "
+            "Install: apt-get install plantuml graphviz default-jre-headless "
+            "(or set PLANTUML_JAR=/path/to/plantuml.jar)."
+        )
 
     mmdc_cmd = check_mmdc() if report.mmdc_available else None
 
@@ -294,6 +357,15 @@ def render_all(data: dict, out_dir: Path) -> DiagramReport:
         dtype = _detect_type(value)
         if dtype == "svg":
             _render_svg_hero(safe_key, value, out_dir, report)
+        elif dtype == "plantuml":
+            if not plantuml_spec:
+                report.failed.append({"key": safe_key, "type": "plantuml", "error": "plantuml not available"})
+                continue
+            src = value if isinstance(value, str) else (value.get("source") or "")
+            if not src.strip():
+                report.warnings.append(f"Empty PlantUML source: {safe_key}")
+                continue
+            _render_plantuml(safe_key, src, out_dir, plantuml_spec, report)
         elif dtype == "mermaid":
             if not mmdc_cmd:
                 report.failed.append({"key": safe_key, "type": "mermaid", "error": "mmdc not available"})

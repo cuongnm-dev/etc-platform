@@ -105,6 +105,7 @@ _TARGET_SPEC: dict[str, tuple[str, str, str]] = {
     "tkkt": ("thiet-ke-kien-truc.docx", "thiet-ke-kien-truc.docx", "docx"),
     "tkcs": ("thiet-ke-co-so.docx", "thiet-ke-co-so.docx", "docx"),
     "tkct": ("thiet-ke-chi-tiet.docx", "thiet-ke-chi-tiet.docx", "docx"),
+    "nckt": ("nghien-cuu-kha-thi.docx", "bao-cao-nghien-cuu-kha-thi.docx", "docx"),
 }
 
 
