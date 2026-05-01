@@ -376,27 +376,56 @@ def _post_process_docx(docx_path: Path) -> tuple[int, list[str]]:
                 set_raw,
             )
 
-    # ── 2.5. Convert floating anchor images → inline ──
-    # Diagram InlineImages occasionally get wrapped in <wp:anchor> (floating)
-    # instead of <wp:inline>, causing Word to overlay caption text or shrink the
-    # image to a thin strip. Force-inline so images flow naturally with text.
-    anchor_to_inline_pat = re.compile(
-        rb"<wp:anchor\b[^>]*>(.*?)</wp:anchor>",
+    # ── 2.5. Force ALL images to anchor + wrapTopAndBottom layout ──
+    # Vietnamese govt-grade documents require images to take their own line
+    # with text flowing above and below — never inline-as-character (image
+    # squeezed in text line) and never wrapNone/wrapSquare (caption overlap).
+    # Layout = anchor + wrapTopAndBottom + center horizontal alignment.
+    doc_raw_fixed = doc_raw
+
+    # Step A — convert <wp:inline>...</wp:inline> → <wp:anchor>...wrapTopAndBottom...</wp:anchor>
+    inline_pat = re.compile(rb"<wp:inline\b[^>]*>(.*?)</wp:inline>", re.DOTALL)
+
+    def _inline_to_anchor_tb(m: re.Match) -> bytes:
+        inner = m.group(1)  # contains <wp:extent>, <wp:effectExtent>, <wp:docPr>, <a:graphic>
+        return (
+            b'<wp:anchor distT="0" distB="0" distL="114300" distR="114300" '
+            b'simplePos="0" relativeHeight="251660288" behindDoc="0" '
+            b'locked="0" layoutInCell="1" allowOverlap="1">'
+            b'<wp:simplePos x="0" y="0"/>'
+            b'<wp:positionH relativeFrom="margin"><wp:align>center</wp:align></wp:positionH>'
+            b'<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+            + inner +
+            b'<wp:wrapTopAndBottom/>'
+            b'</wp:anchor>'
+        )
+
+    if doc_raw_fixed and b"<wp:inline" in doc_raw_fixed:
+        doc_raw_fixed = inline_pat.sub(_inline_to_anchor_tb, doc_raw_fixed)
+
+    # Step B — for existing anchors, ensure wrap mode = topAndBottom (replace
+    # any wrapNone/wrapSquare/wrapTight/wrapThrough/wrapPolygon).
+    bad_wrap_pat = re.compile(
+        rb"<wp:(wrapNone|wrapSquare|wrapTight|wrapThrough|wrapPolygon)\b[^>]*(?:/>|>.*?</wp:\1>)",
         re.DOTALL,
     )
-    drop_pat = re.compile(
-        rb"<wp:(simplePos|positionH|positionV|wrapNone|wrapSquare|wrapTopAndBottom|wrapTight|wrapThrough|wrapPolygon)\b[^>]*(?:/>|>.*?</wp:\1>)",
-        re.DOTALL,
-    )
+    anchor_pat = re.compile(rb"<wp:anchor(\b[^>]*)>(.*?)</wp:anchor>", re.DOTALL)
 
-    def _anchor_to_inline(m: re.Match) -> bytes:
-        body = drop_pat.sub(b"", m.group(1))
-        return b"<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">" + body + b"</wp:inline>"
+    def _anchor_handler(m: re.Match) -> bytes:
+        attrs = m.group(1)
+        body = m.group(2)
+        # Drop other wrap variants
+        body = bad_wrap_pat.sub(b"", body)
+        if b"<wp:wrapTopAndBottom" not in body:
+            insert_target = b"<a:graphic"
+            if insert_target in body:
+                body = body.replace(insert_target, b"<wp:wrapTopAndBottom/>" + insert_target, 1)
+            else:
+                body = body + b"<wp:wrapTopAndBottom/>"
+        return b"<wp:anchor" + attrs + b">" + body + b"</wp:anchor>"
 
-    if doc_raw and b"<wp:anchor" in doc_raw:
-        doc_raw_fixed = anchor_to_inline_pat.sub(_anchor_to_inline, doc_raw)
-    else:
-        doc_raw_fixed = doc_raw
+    if doc_raw_fixed and b"<wp:anchor" in doc_raw_fixed:
+        doc_raw_fixed = anchor_pat.sub(_anchor_handler, doc_raw_fixed)
 
     # ── 3. Mark fldChar dirty + collect residual Jinja markers in document.xml ──
     new_doc_raw = doc_raw_fixed
