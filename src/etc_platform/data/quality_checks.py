@@ -493,6 +493,15 @@ def check_diagram_quality(data: dict) -> list[str]:
         if not any(end in low for end in end_markers):
             warnings.append(f"{prefix}: missing closing @end... directive.")
 
+        # Gantt-specific: enforce printscale to avoid 8000+px renders
+        if "@startgantt" in low and "printscale" not in low:
+            warnings.append(
+                f"{prefix}: @startgantt missing `printscale weekly` (or monthly/"
+                f"quarterly). Without it PlantUML renders 1 cell per day → "
+                f"output may exceed 8000px wide and become unreadable. "
+                f"See diagram-quality-patterns.md §10f."
+            )
+
         # Skinparam preset
         if "defaultfontname" not in low:
             warnings.append(
