@@ -81,6 +81,6 @@ jobs:
       - name: Smoke test — export from sample data
         run: |
           etc-platform validate examples/minimal/content-data.json
-          etc-platform export --config examples/minimal/etc-docgen.yaml \
+          etc-platform export --config examples/minimal/etc-platform.yaml \
             --data examples/minimal/content-data.json \
             --only xlsx --only tkkt

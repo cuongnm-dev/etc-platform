@@ -118,7 +118,7 @@ curl -fsS -X POST http://localhost:8000/uploads \
 ```
 
 **Errors**
-- `413 UPLOAD_TOO_LARGE` — payload exceeds `ETC_DOCGEN_MAX_UPLOAD_BYTES`.
+- `413 UPLOAD_TOO_LARGE` — payload exceeds `ETC_PLATFORM_MAX_UPLOAD_BYTES`.
 - `4xx` — payload is not valid JSON / UTF-8.
 
 ### `GET /uploads/{upload_id}`
@@ -237,28 +237,28 @@ Notes:
 
 ## Authentication
 
-If `ETC_DOCGEN_API_KEY` is set, every route except `/healthz` requires a
+If `ETC_PLATFORM_API_KEY` is set, every route except `/healthz` requires a
 matching `X-API-Key` header. Use TLS-terminating reverse proxy (nginx,
 Caddy, Traefik) for transport security. The server itself speaks plain
 HTTP by design — no key material on disk.
 
 ## Environment variables
 
-| Variable                          | Default      | Meaning                                  |
-| --------------------------------- | ------------ | ---------------------------------------- |
-| `ETC_DOCGEN_JOBS_ROOT`            | `/data/_jobs`| Filesystem root for uploads + jobs + workspaces. |
-| `ETC_DOCGEN_UPLOAD_TTL_S`         | `1800`       | Upload TTL (sec).                        |
-| `ETC_DOCGEN_WORKSPACE_TTL_S`      | `86400`      | Workspace TTL (24h — longer than job).   |
-| `ETC_DOCGEN_MAX_WORKSPACE_BYTES`  | `104857600`  | Workspace cap, 100 MB total.             |
-| `ETC_DOCGEN_MAX_WORKSPACE_FILES`  | `200`        | Workspace cap, max files per bundle.     |
-| `ETC_DOCGEN_JOB_TTL_S`            | `3600`       | Job TTL (sec).                           |
-| `ETC_DOCGEN_MAX_UPLOAD_BYTES`     | `10485760`   | Per-upload cap (bytes, 10 MB).           |
-| `ETC_DOCGEN_RUNNER_WORKERS`       | `2`          | Concurrent rendering jobs.               |
-| `ETC_DOCGEN_RUNNER_QUEUE_MAX`     | `100`        | Queue back-pressure threshold.           |
-| `ETC_DOCGEN_RUNNER_TIMEOUT_S`     | `300`        | Per-job hard ceiling.                    |
-| `ETC_DOCGEN_API_KEY`              | unset        | Enable API-key auth.                     |
-| `ETC_DOCGEN_CORS_ORIGINS`         | unset        | Comma-separated allowed origins.         |
-| `LOG_LEVEL`                       | `INFO`       | Standard Python log levels.              |
+| Variable                             | Default      | Meaning                                  |
+| ------------------------------------ | ------------ | ---------------------------------------- |
+| `ETC_PLATFORM_JOBS_ROOT`             | `/data/_jobs`| Filesystem root for uploads + jobs + workspaces. |
+| `ETC_PLATFORM_UPLOAD_TTL_S`          | `1800`       | Upload TTL (sec).                        |
+| `ETC_PLATFORM_WORKSPACE_TTL_S`       | `86400`      | Workspace TTL (24h — longer than job).   |
+| `ETC_PLATFORM_MAX_WORKSPACE_BYTES`   | `104857600`  | Workspace cap, 100 MB total.             |
+| `ETC_PLATFORM_MAX_WORKSPACE_FILES`   | `200`        | Workspace cap, max files per bundle.     |
+| `ETC_PLATFORM_JOB_TTL_S`            | `3600`       | Job TTL (sec).                           |
+| `ETC_PLATFORM_MAX_UPLOAD_BYTES`      | `10485760`   | Per-upload cap (bytes, 10 MB).           |
+| `ETC_PLATFORM_RUNNER_WORKERS`        | `2`          | Concurrent rendering jobs.               |
+| `ETC_PLATFORM_RUNNER_QUEUE_MAX`      | `100`        | Queue back-pressure threshold.           |
+| `ETC_PLATFORM_RUNNER_TIMEOUT_S`      | `300`        | Per-job hard ceiling.                    |
+| `ETC_PLATFORM_API_KEY`               | unset        | Enable API-key auth.                     |
+| `ETC_PLATFORM_CORS_ORIGINS`          | unset        | Comma-separated allowed origins.         |
+| `LOG_LEVEL`                          | `INFO`       | Standard Python log levels.              |
 
 ## Migration from inline `export()` (v1.0)
 
@@ -295,13 +295,13 @@ Token cost change:
 ## Operational notes
 
 * **Storage growth**: under default TTLs, peak disk = `(workers × largest job output) + (open uploads × max_upload_bytes)`. For a 5-target job with ~150 KB Office files each, that's <5 MB per concurrent job. Plan ~1 GB of disk per shared deployment.
-* **Worker tuning**: each worker is CPU-bound during render (docxtpl + openpyxl). On a 4-core host, `ETC_DOCGEN_RUNNER_WORKERS=2` is safe; raise to 4 only if Mermaid is disabled (mermaid-cli forks Chromium and competes for CPU).
+* **Worker tuning**: each worker is CPU-bound during render (docxtpl + openpyxl). On a 4-core host, `ETC_PLATFORM_RUNNER_WORKERS=2` is safe; raise to 4 only if Mermaid is disabled (mermaid-cli forks Chromium and competes for CPU).
 * **Backpressure**: when the queue saturates, clients get `503 QUEUE_FULL`. Don't bury the retry — surface it; queue-full means your team is contending for shared infrastructure and someone needs to know.
 * **TTL trade-off**: lowering job TTL reclaims disk faster but makes "download later" workflows brittle. The default 1 h matches typical CI run length.
 
 ## Threat model
 
 * **Path traversal** — IDs validated against `^[A-Za-z0-9_-]{2,64}$`; download filenames must match a recorded `JobOutput.filename` (no arbitrary stem from URL).
-* **Tenant isolation** — single-tenant by default. For multi-tenant, set `ETC_DOCGEN_API_KEY` and run a key per tenant; uploads/jobs are not yet scoped per key (planned).
+* **Tenant isolation** — single-tenant by default. For multi-tenant, set `ETC_PLATFORM_API_KEY` and run a key per tenant; uploads/jobs are not yet scoped per key (planned).
 * **Resource exhaustion** — capped via `MAX_UPLOAD_BYTES` + queue back-pressure + per-job timeout. A misbehaving renderer cannot run forever.
 * **Stored XSS / template injection** — content_data is rendered through docxtpl's autoescape; raw HTML is never concatenated into Office XML by hand.

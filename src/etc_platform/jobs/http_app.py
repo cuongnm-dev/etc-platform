@@ -99,7 +99,7 @@ class HttpSettings(BaseModel):
         import os
 
         def _env(*names: str, default: str = "") -> str:
-            """Read first non-empty env var. Supports back-compat ETC_DOCGEN_* aliases."""
+            """Read first non-empty env var. Supports legacy ETC_DOCGEN_* aliases."""
             for n in names:
                 v = os.environ.get(n)
                 if v:
@@ -107,7 +107,7 @@ class HttpSettings(BaseModel):
             return default
 
         def _int(name: str, default: int) -> int:
-            # Back-compat: also try ETC_DOCGEN_X if ETC_PLATFORM_X unset
+            # Legacy fallback: also try ETC_DOCGEN_X if ETC_PLATFORM_X unset
             legacy = name.replace("ETC_PLATFORM_", "ETC_DOCGEN_")
             raw = os.environ.get(name) or os.environ.get(legacy)
             return int(raw) if raw and raw.isdigit() else default

@@ -131,7 +131,7 @@ def test_validate_malformed_json(tmp_path):
 
 @pytest.fixture(autouse=True)
 def allow_tmp_writes(tmp_path, monkeypatch):
-    """Allow merge_content to write to tmp_path during tests via ETC_DOCGEN_EXTRA_ROOTS."""
+    """Allow merge_content to write to tmp_path during tests via ETC_PLATFORM_EXTRA_ROOTS."""
     monkeypatch.setenv("ETC_PLATFORM_EXTRA_ROOTS", str(tmp_path))
     # Reload _ALLOWED_ROOTS after env change
     import etc_platform.mcp_server as mcp_mod

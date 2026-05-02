@@ -17,6 +17,7 @@ When ``version="latest"`` is requested, the most recent outline is selected
 by lexicographic sort of basenames (consumers should pin explicit versions
 in production).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +27,7 @@ from typing import Any
 
 _DATA_DIR: Path = Path(
     os.environ.get("ETC_PLATFORM_DATA_DIR")
-    or os.environ.get("ETC_DOCGEN_DATA_DIR")  # back-compat
+    or os.environ.get("ETC_DOCGEN_DATA_DIR")  # legacy alias
     or "/data"
 )
 # Two roots: user-mounted (/data/outlines, allows custom override) +
@@ -104,8 +105,7 @@ def outline_load_impl(doc_type: str, version: str = "latest") -> dict[str, Any]:
         version_used = version
     else:
         raise FileNotFoundError(
-            f"Outline {doc_type}/{version}.md not found. "
-            f"Available versions: {versions}"
+            f"Outline {doc_type}/{version}.md not found. Available versions: {versions}"
         )
 
     path = _safe_join(doc_type, f"{version_used}.md")

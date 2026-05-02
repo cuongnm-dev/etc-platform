@@ -28,9 +28,9 @@ from pathlib import Path
 
 _DATA_DIR: Path = Path(
     os.environ.get("ETC_PLATFORM_REGISTRY_DIR")
-    or os.environ.get("ETC_DOCGEN_REGISTRY_DIR")  # back-compat
+    or os.environ.get("ETC_DOCGEN_REGISTRY_DIR")  # legacy alias
     or os.environ.get("ETC_PLATFORM_DATA_DIR")
-    or os.environ.get("ETC_DOCGEN_DATA_DIR")  # back-compat
+    or os.environ.get("ETC_DOCGEN_DATA_DIR")  # legacy alias
     or "/data/registry"
 )
 _DB_PATH: Path = _DATA_DIR / "etc-platform.db"
